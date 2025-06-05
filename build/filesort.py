@@ -37,16 +37,12 @@ class FileSorterApp:
         self.tab_buttons = {}
         self.tab_containers = {}
 
-        # === Top Bar (flat) ===
-        self.top_bar = tk.Frame(self.root, bg="#f8f8f8")
+        # === Top bar that holds tabs + settings ===
+        self.top_bar = tk.Frame(self.root, bg="#f8f8f8", bd=2, relief="groove")
         self.top_bar.pack(fill="x")
 
-        # === Tab Bar with top border only ===
-        self.tab_bar_wrapper = tk.Frame(self.root, bg="#a0a0a0", height=2)
-        self.tab_bar_wrapper.pack(fill="x")
-
-        self.tab_bar = tk.Frame(self.root, bg="#e8e8e8")
-        self.tab_bar.pack(fill="x", padx=6, pady=(0, 0))
+        self.tab_bar = tk.Frame(self.top_bar, bg="#e8e8e8")
+        self.tab_bar.pack(side="left", padx=6, pady=4)
 
         self.settings_btn = ttk.Button(self.top_bar, text="⚙️", command=self.open_settings)
         self.settings_btn.pack(side="right", padx=6, pady=6)
@@ -55,7 +51,7 @@ class FileSorterApp:
         self.add_tab("Logs", fixed=True)
 
         # === Content Area ===
-        self.content_frame = tk.Frame(self.root, bg="#f8f8f8")
+        self.content_frame = tk.Frame(self.root, bg="#f8f8f8", bd=0)
         self.content_frame.pack(fill="both", expand=True)
 
         self.rules_tab = tk.Frame(self.content_frame, bg="#f8f8f8")
