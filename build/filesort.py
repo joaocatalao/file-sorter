@@ -2,11 +2,13 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import tkinter.font as tkFont
 
+
 class Rule:
     def __init__(self, name, file_pattern, destination):
         self.name = name
         self.file_pattern = file_pattern
         self.destination = destination
+
 
 class FileSorterApp:
     def __init__(self, root):
@@ -33,14 +35,18 @@ class FileSorterApp:
 
     def create_widgets(self):
         self.tab_buttons = {}
-        self.tab_labels = {}
+        self.tab_containers = {}
 
-        # === Header with Tabs + Settings ===
-        self.top_bar = tk.Frame(self.root, bg="#dcdcdc", bd=0)
+        # === Top Bar (flat) ===
+        self.top_bar = tk.Frame(self.root, bg="#f8f8f8")
         self.top_bar.pack(fill="x")
 
-        self.tab_bar = tk.Frame(self.top_bar, bg="#dcdcdc", height=30)
-        self.tab_bar.pack(side="left", fill="x", expand=True, padx=6, pady=(4, 0))
+        # === Tab Bar with top border only ===
+        self.tab_bar_wrapper = tk.Frame(self.root, bg="#a0a0a0", height=2)
+        self.tab_bar_wrapper.pack(fill="x")
+
+        self.tab_bar = tk.Frame(self.root, bg="#e8e8e8")
+        self.tab_bar.pack(fill="x", padx=6, pady=(0, 0))
 
         self.settings_btn = ttk.Button(self.top_bar, text="⚙️", command=self.open_settings)
         self.settings_btn.pack(side="right", padx=6, pady=6)
@@ -48,8 +54,8 @@ class FileSorterApp:
         self.add_tab("Rules", fixed=True)
         self.add_tab("Logs", fixed=True)
 
-        # === Tab Content Area ===
-        self.content_frame = tk.Frame(self.root, bg="#ffffff", bd=1, relief="solid")
+        # === Content Area ===
+        self.content_frame = tk.Frame(self.root, bg="#f8f8f8")
         self.content_frame.pack(fill="both", expand=True)
 
         self.rules_tab = tk.Frame(self.content_frame, bg="#f8f8f8")
@@ -62,52 +68,55 @@ class FileSorterApp:
 
         self.rules_content = tk.Frame(self.rules_tab, bg="#f8f8f8")
         self.rules_content.pack(fill='both', expand=True, padx=10, pady=(0, 10))
-
         self.populate_rules_list(self.rules_content)
 
     def add_tab(self, name, fixed=False):
-        frame = tk.Frame(self.tab_bar, bg="#dcdcdc")
+        frame = tk.Frame(self.tab_bar, bg="#e8e8e8")
         frame.pack(side="left", padx=(0, 1))
 
-        tab_label = tk.Label(
-            frame,
-            text=name,
-            bg="#e0e0e0",
-            padx=12,
-            pady=4,
-            bd=1,
-            relief="raised"
-        )
+        tab_container = tk.Frame(frame, bg="#e0e0e0", bd=1, relief="raised")
+        tab_container.pack(side="left", fill="y")
+
+        tab_label = tk.Label(tab_container, text=name, bg="#e0e0e0", padx=10, pady=4)
         tab_label.pack(side="left")
         tab_label.bind("<Button-1>", lambda e, n=name: self.switch_tab(n))
-        tab_label.bind("<Enter>", lambda e: tab_label.config(bg="#e6e6e6"))
+        tab_label.bind("<Enter>", lambda e: tab_container.config(bg="#dddddd"))
         tab_label.bind("<Leave>", lambda e: self.reset_tab_style(name))
 
         if not fixed:
-            close_label = tk.Label(frame, text="×", bg="#e0e0e0", padx=6, pady=4, bd=1, relief="raised")
+            close_label = tk.Label(tab_container, text="×", bg="#e0e0e0", padx=6, pady=4)
             close_label.pack(side="left")
             close_label.bind("<Button-1>", lambda e, f=frame, n=name: self.close_tab(f, n))
             close_label.bind("<Enter>", lambda e: close_label.config(bg="#ffdddd"))
             close_label.bind("<Leave>", lambda e: self.reset_tab_style(name))
 
         self.tab_buttons[name] = frame
-        self.tab_labels[name] = tab_label
+        self.tab_containers[name] = tab_container
 
     def reset_tab_style(self, name):
-        if self.current_tab_name == name:
-            self.tab_labels[name].config(bg="#ffffff", relief="flat", bd=0)
-        else:
-            self.tab_labels[name].config(bg="#e0e0e0", relief="raised", bd=1)
+        tab = self.tab_containers.get(name)
+        if tab and name == self.current_tab_name:
+            tab.config(bg="#e8e8e8", relief="flat", bd=0)
+            for child in tab.winfo_children():
+                child.config(bg="#e8e8e8")
+        elif tab:
+            tab.config(bg="#e0e0e0", relief="raised", bd=1)
+            for child in tab.winfo_children():
+                child.config(bg="#e0e0e0")
 
     def switch_tab(self, name):
-        self.current_tab.pack_forget()
-        self.current_tab_name = name
+        if self.current_tab:
+            self.current_tab.pack_forget()
 
-        for n, tab in self.tab_labels.items():
+        for n, tab in self.tab_containers.items():
             if n == name:
-                tab.config(bg="#ffffff", relief="flat", bd=0)
+                tab.config(bg="#e8e8e8", relief="flat", bd=0)
+                for child in tab.winfo_children():
+                    child.config(bg="#e8e8e8")
             else:
                 tab.config(bg="#e0e0e0", relief="raised", bd=1)
+                for child in tab.winfo_children():
+                    child.config(bg="#e0e0e0")
 
         if name == "Rules":
             self.rules_tab.pack(fill="both", expand=True)
@@ -115,16 +124,21 @@ class FileSorterApp:
         elif name == "Logs":
             self.logs_tab.pack(fill="both", expand=True)
             self.current_tab = self.logs_tab
-        else:
+        elif name in self.rule_tabs:
             self.rule_tabs[name].pack(fill="both", expand=True)
             self.current_tab = self.rule_tabs[name]
+
+        self.current_tab_name = name
 
     def close_tab(self, frame, name):
         frame.destroy()
         if name in self.rule_tabs:
             self.rule_tabs[name].destroy()
             del self.rule_tabs[name]
-        if self.current_tab == self.rule_tabs.get(name):
+        del self.tab_buttons[name]
+        del self.tab_containers[name]
+
+        if self.current_tab_name == name:
             self.switch_tab("Rules")
 
     def create_rules_header(self, parent):
