@@ -1,0 +1,8 @@
+[
+    {
+        "name": "New Rule #1",
+        "file_pattern": "C:/Users/joaocatalao/Desktop",
+        "destination": "C:/Users/joaocatalao/Desktop",
+        "include_subs": false
+    }
+]
