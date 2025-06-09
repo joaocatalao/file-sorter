@@ -213,7 +213,7 @@ class FileSorterApp:
         rule_tab = tk.Frame(self.content_frame, bg="#f9f9f9")
         self.rule_tabs[title] = rule_tab
         self.switch_tab(title)
-        self.build_rule_form(rule_tab, title, rule.name + f" #{index}", rule.file_pattern, rule.include_subs, rule.destination)
+        self.build_rule_form(rule_tab, title, rule.name + f" #{index}", rule.file_pattern, rule.include_subs, rule.destination, existing_rule=rule)
 
     def edit_existing_rule(self, rule):
         existing_titles = set(self.tab_labels.keys()) | set(self.rule_tabs.keys())
