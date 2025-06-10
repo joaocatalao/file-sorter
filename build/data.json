@@ -1,8 +1,25 @@
 [
     {
-        "name": "New Rule #1",
-        "file_pattern": "C:/Users/joaocatalao/Desktop",
-        "destination": "C:/Users/joaocatalao/Desktop",
-        "include_subs": false
+        "name": "Test Rule",
+        "file_pattern": "C:/Users/Joao/Desktop",
+        "destination": "C:/Users/Joao/Desktop",
+        "include_subs": false,
+        "condition_tree": {
+            "logic": "All of the following",
+            "children": [
+                {
+                    "type": "File extension",
+                    "comparison": "Is",
+                    "input_type": "Text",
+                    "value": "pdf"
+                }
+            ]
+        },
+        "action_list": [
+            {
+                "action": "Move file",
+                "path": "C:/Users/Joao/Desktop"
+            }
+        ]
     }
 ]

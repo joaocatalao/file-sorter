@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog, messagebox
 import tkinter.font as tkFont
 import json
 import os
+import copy
 
 class Rule:
     def __init__(self, name, file_pattern, destination, include_subs=False):
@@ -16,23 +17,29 @@ class Rule:
             "name": self.name,
             "file_pattern": self.file_pattern,
             "destination": self.destination,
-            "include_subs": self.include_subs
+            "include_subs": self.include_subs,
+            "condition_tree": getattr(self, "_condition_tree", {}),
+            "action_list": getattr(self, "_action_list", [])
         }
 
     @staticmethod
     def from_dict(data):
-        return Rule(
+        rule = Rule(
             data["name"],
             data["file_pattern"],
             data["destination"],
             data.get("include_subs", False)
         )
+        rule._condition_tree = data.get("condition_tree", {})
+        rule._action_list = data.get("action_list", [])
+        return rule
 
 class FileSorterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Document Sorter")
         self.root.iconbitmap("favicon.ico")
+        self.unsaved_tabs = set()
 
         default_font = tkFont.nametofont("TkDefaultFont")
         default_font.configure(family="Segoe UI", size=16)
@@ -143,7 +150,27 @@ class FileSorterApp:
             self.current_tab = self.rule_tabs[name]
 
     def close_tab(self, frame, name):
-        frame.destroy()
+        if name not in self.rule_tabs:
+            name = self.current_tab_name
+        
+        tab_frame = self.rule_tabs.get(name)
+        if not tab_frame or not str(tab_frame):
+            return  # Already destroyed or invalid
+
+        if name in self.unsaved_tabs:
+            confirm = messagebox.askyesnocancel("Unsaved Changes", f"Save changes to '{name}' before closing?")
+            if confirm is None:
+                return  # Cancelled
+            elif confirm:
+                # Trigger the save button manually
+                tab_frame = self.rule_tabs.get(name)
+                if tab_frame:
+                    for widget in tab_frame.winfo_children():
+                        for child in widget.winfo_children():
+                            if isinstance(child, ttk.Button) and "Save" in child.cget("text"):
+                                child.invoke()
+                                break
+
         if name in self.rule_tabs:
             self.rule_tabs[name].destroy()
             del self.rule_tabs[name]
@@ -154,6 +181,9 @@ class FileSorterApp:
 
         if self.current_tab_name == name:
             self.switch_tab("Rules")
+
+        self.unsaved_tabs.discard(name)
+        frame.destroy()
 
     def create_rules_header(self, parent):
         header_frame = tk.Frame(parent, bg="#f0f0f0", height=50)
@@ -180,10 +210,12 @@ class FileSorterApp:
         for rule in self.rules:
             frame = ttk.Frame(parent, style="Card.TFrame")
             frame.pack(fill='x', padx=10, pady=5)
+            
+            dest = rule.destination or (rule._action_list[0]["path"] if getattr(rule, "_action_list", []) else "")
 
             label = ttk.Label(
                 frame,
-                text=f"{rule.name}: {rule.file_pattern} → {rule.destination}",
+                text=f"{rule.name}: {rule.file_pattern} → {dest}",
                 anchor='w',
                 background="#f8f8f8"
             )
@@ -202,23 +234,39 @@ class FileSorterApp:
             self.create_tooltip(delete_btn, "Delete rule", left_align=True)
 
     def clone_existing_rule(self, rule, existing_rule=None):
+        base_name = rule.name + " (Copy"
         existing_titles = set(self.tab_labels.keys()) | set(self.rule_tabs.keys())
         index = 1
-        base_name = rule.name + " #"
-        while f"{base_name}{index}" in existing_titles:
+        title = f"{base_name})"
+        while title in existing_titles:
             index += 1
-        title = f"{base_name}{index}"
+            title = f"{base_name} {index})"
+
 
         self.add_tab(title)
         rule_tab = tk.Frame(self.content_frame, bg="#f9f9f9")
         self.rule_tabs[title] = rule_tab
         self.switch_tab(title)
-        self.build_rule_form(rule_tab, title, rule.name + f" #{index}", rule.file_pattern, rule.include_subs, rule.destination, existing_rule=rule)
+
+        cloned_rule = copy.deepcopy(rule)
+        self.build_rule_form(
+            rule_tab=rule_tab,
+            title=title,
+            name=title,
+            pattern=cloned_rule.file_pattern,
+            include_subs=cloned_rule.include_subs,
+            destination=cloned_rule.destination,
+            existing_rule=cloned_rule,  # ✅ Let it populate UI
+            rule_index=None,
+            preset_rule=cloned_rule,
+            is_cloning=True             # ✅ Force save as new
+        )
 
     def edit_existing_rule(self, rule):
         existing_titles = set(self.tab_labels.keys()) | set(self.rule_tabs.keys())
         title = rule.name
-        index = 1
+
+        index = self.rules.index(rule)
         while title in existing_titles:
             title = f"{rule.name} (Edit {index})"
             index += 1
@@ -227,7 +275,18 @@ class FileSorterApp:
         rule_tab = tk.Frame(self.content_frame, bg="#f9f9f9")
         self.rule_tabs[title] = rule_tab
         self.switch_tab(title)
-        self.build_rule_form(rule_tab, title, rule.name, rule.file_pattern, rule.include_subs, rule.destination, existing_rule=rule)
+        cloned_rule = copy.deepcopy(rule)
+
+        self.build_rule_form(
+            rule_tab=rule_tab,
+            title=title,
+            name=cloned_rule.name,
+            pattern=cloned_rule.file_pattern,
+            include_subs=cloned_rule.include_subs,
+            destination=cloned_rule.destination,
+            existing_rule=cloned_rule,
+            rule_index=index
+        )
 
     def delete_existing_rule(self, rule):
         confirm = messagebox.askyesno("Delete Rule", f"Are you sure you want to delete '{rule.name}'?")
@@ -281,7 +340,7 @@ class FileSorterApp:
         widget.bind("<Enter>", enter)
         widget.bind("<Leave>", leave)
 
-    def build_rule_form(self, rule_tab, title, name, pattern, include_subs, destination, existing_rule=None):
+    def build_rule_form(self, rule_tab, title, name, pattern, include_subs, destination, existing_rule=None, rule_index=None, preset_rule=None, is_cloning=False):
         rule_tab.pack(fill='both', expand=True)
         title_container = {'title': title}
 
@@ -315,6 +374,19 @@ class FileSorterApp:
                     self.rule_tabs[new_name] = self.rule_tabs.pop(old_title)
                 self.tab_labels[new_name].config(text=new_name)
                 title_container['title'] = new_name
+                self.mark_tab_dirty(new_name)
+
+                def bind_dirty(var):
+                    var.trace_add("write", lambda *_: self.mark_tab_dirty(title_container['title']))
+
+                bind_dirty(rule_name_var)
+                bind_dirty(folder_var)
+                include_subs_var.trace_add("write", lambda *_: self.mark_tab_dirty(title_container['title']))
+
+                if old_title in self.unsaved_tabs:
+                    self.unsaved_tabs.remove(old_title)
+                    self.unsaved_tabs.add(new_name)
+
                 self.current_tab_name = new_name
 
         rule_name_var.trace_add("write", update_tab_name)
@@ -324,43 +396,58 @@ class FileSorterApp:
 
             if root_condition_group:
                 conditions_data = root_condition_group.get_data()
+                if not conditions_data.get("children"):
+                    messagebox.showerror("Error", "You must add at least one condition.")
+                    return
             else:
-                conditions_data = {
-                    "logic": logic_cb.get(),
-                    "children": [self._initial_condition_row.get_data()]
-                }
+                messagebox.showerror("Error", "You must add at least one condition.")
+                return
+            
+            def check_conditions(children):
+                for cond in children:
+                    if "children" in cond:
+                        if not check_conditions(cond["children"]):  # recurse
+                            return False
+                    else:
+                        if not cond.get("value", "").strip():
+                            return False
+                return True
 
-            first_value = ""
-            if conditions_data["children"]:
-                child = conditions_data["children"][0]
-                if isinstance(child, dict) and "value" in child:
-                    first_value = child["value"].strip()
+            if not check_conditions(conditions_data["children"]):
+                messagebox.showerror("Error", "One or more conditions are incomplete (missing value).")
+                return
 
-            dest = dest_var.get().strip()
             missing = []
             if not rule_name_var.get().strip():
                 missing.append("Rule Name")
             if not folder:
                 missing.append("Folder")
-            if not first_value:
-                missing.append("Condition Value")
-            if not dest:
-                missing.append("Destination")
             if missing:
                 messagebox.showerror("Error", "Missing fields: " + ", ".join(missing))
                 return
             
+            actions_data = [row.get_data() for row in self._action_rows]
+
+            if not actions_data:
+                messagebox.showerror("Error", "You must add at least one action.")
+                return
+
+            if any(not a["path"].strip() for a in actions_data):
+                messagebox.showerror("Error", "One or more action paths are empty.")
+                return
+
             self.save_rule_from_ui(
                 title_container['title'],
                 rule_name_var.get(),
                 folder,
-                first_value,
-                dest,
                 include_subs_var.get(),
                 existing_rule=existing_rule,
-                conditions_data=conditions_data
+                conditions_data=conditions_data,
+                actions_data=actions_data,
+                rule_index=rule_index,
+                is_cloning=is_cloning
             )
-
+        
         ttk.Button(header_frame, text="📄 Copy", command=lambda: print("Copy rule UI state")).pack(side='right', padx=5)
         ttk.Button(header_frame, text="📅 Save", command=validate_and_save).pack(side='right', padx=10)
 
@@ -386,55 +473,85 @@ class FileSorterApp:
         condition_frame = tk.LabelFrame(container, text="If", bg="#f9f9f9")
         condition_frame.pack(fill='x', pady=10)
 
-        logic_row = tk.Frame(condition_frame, bg="#f9f9f9")
-        logic_row.pack(fill='x', padx=5, pady=(0, 5))
-
-        logic_cb = ttk.Combobox(logic_row, values=["All of the following", "Any of the following", "None of the following"], state="readonly")
-        logic_cb.set("All of the following")
-        logic_cb.pack(side='left', padx=5)
-
         root_condition_group = None  # delay assignment
+
+        def bind_dirty(var):
+            var.trace_add("write", lambda *_: self.mark_tab_dirty(title_container['title']))
+
+        bind_dirty(rule_name_var)
+        bind_dirty(folder_var)
+        include_subs_var.trace_add("write", lambda *_: self.mark_tab_dirty(title_container['title']))
 
         def init_root_condition_group():
             nonlocal root_condition_group
-            root_condition_group = ConditionGroup(condition_frame, is_root=True)
-            root_condition_group.logic_cb = logic_cb
+            if existing_rule and hasattr(existing_rule, "_condition_tree") and existing_rule._condition_tree:
+                root_condition_group = ConditionGroup.from_data(condition_frame, existing_rule._condition_tree, is_root=True)
 
-        preset = None
-        if existing_rule and hasattr(existing_rule, "_condition_value"):
-            preset = {
-                "type": "File name",
-                "comparison": "Contains",
-                "input_type": "Text",
-                "value": existing_rule._condition_value
-            }
+        # Always initialize the appropriate layout
+        init_root_condition_group()
 
-        initial_condition_row = ConditionRow(condition_frame, remove_callback=lambda r: r.frame.destroy(), is_first=True, preset=preset)
-        self._initial_condition_row = initial_condition_row
+        if not existing_rule and preset_rule:
+            if hasattr(preset_rule, "_condition_tree") and preset_rule._condition_tree:
+                root_condition_group = ConditionGroup.from_data(condition_frame, preset_rule._condition_tree, is_root=True)
 
-        # Create buttons to upgrade to group
-        button_frame = tk.Frame(condition_frame, bg="#f9f9f9")
-        button_frame.pack(anchor="w", pady=5, padx=5)
+            if hasattr(preset_rule, "_action_list"):
+                for preset in preset_rule._action_list:
+                    add_action_row(preset)
 
-        def upgrade_to_group():
-            initial_condition_row.frame.destroy()
-            button_frame.destroy()
-            init_root_condition_group()
 
-        ttk.Button(button_frame, text="➕ Add Condition", command=upgrade_to_group).pack(side="left", padx=2)
-        ttk.Button(button_frame, text="➕ Add Group", command=upgrade_to_group).pack(side="left", padx=2)
+        if root_condition_group is None:
+            def create_top_level_group():
+                nonlocal root_condition_group
+                root_condition_group = ConditionGroup(condition_frame, is_root=True)
 
+            logic_cb = ttk.Combobox(condition_frame, values=["All of the following", "Any of the following", "None of the following"], state="readonly", width=22)
+            logic_cb.set("All of the following")
+            logic_cb.pack(anchor="w", padx=5, pady=(0, 5))
+
+            button_frame = tk.Frame(condition_frame, bg="#f9f9f9")
+            button_frame.pack(anchor="w", padx=5, pady=(0, 5))
+
+            def handle_add_condition():
+                create_top_level_group()
+                button_frame.destroy()
+                logic_cb.pack_forget()
+                root_condition_group.logic_cb.set(logic_cb.get())
+                root_condition_group.add_condition()
+
+            def handle_add_group():
+                create_top_level_group()
+                button_frame.destroy()
+                logic_cb.pack_forget()
+                root_condition_group.logic_cb.set(logic_cb.get())
+                root_condition_group.add_group()
+
+            ttk.Button(button_frame, text="➕ Add Condition", command=handle_add_condition).pack(side="left", padx=2)
+            ttk.Button(button_frame, text="➕ Add Group", command=handle_add_group).pack(side="left", padx=2)
 
         action_frame = tk.LabelFrame(container, text="Then", bg="#f9f9f9")
         action_frame.pack(fill='x', pady=10)
-        action_row = tk.Frame(action_frame, bg="#f9f9f9")
-        action_row.pack(fill='x', padx=5, pady=5)
-        action_cb = ttk.Combobox(action_row, values=["Move file", "Rename file", "Delete file", "Copy file"])
-        action_cb.set("Move file")
-        action_cb.pack(side='left', padx=5)
-        dest_var = tk.StringVar(value=destination)
-        tk.Entry(action_row, textvariable=dest_var).pack(side='left', fill='x', expand=True, padx=5)
-        ttk.Button(action_row, text="...", command=lambda: dest_var.set(filedialog.askdirectory())).pack(side='left', padx=5)
+
+        action_rows = []
+
+        def add_action_row(preset=None):
+            row = ActionRow(action_frame, remove_action_row, preset)
+            action_rows.append(row)
+
+        def remove_action_row(row):
+            if row in action_rows:
+                action_rows.remove(row)
+
+        ttk.Button(action_frame, text="➕ Add Action", command=lambda: add_action_row()).pack(anchor="w", padx=5, pady=(0, 5))
+
+        # Add default action only if no preset
+        if hasattr(existing_rule, "_action_list"):
+            for preset in existing_rule._action_list:
+                add_action_row(preset)
+
+        elif existing_rule is not None:
+            add_action_row()
+
+        self._action_rows = action_rows
 
     def add_rule(self):
         existing_titles = set(self.tab_labels.keys()) | set(self.rule_tabs.keys())
@@ -458,39 +575,45 @@ class FileSorterApp:
             destination=""
         )
 
-    def save_rule_from_ui(self, tab_name, name, pattern, content_filter, destination, include_subs, existing_rule=None, conditions_data=None):
-        if tab_name and pattern and destination:
-            if existing_rule:
+    def save_rule_from_ui(self, tab_name, name, pattern, include_subs, existing_rule=None, conditions_data=None, actions_data=None, rule_index=None, is_cloning=False):
+        if tab_name and pattern:
+            if existing_rule and not is_cloning:
                 existing_rule.name = name
                 existing_rule.file_pattern = pattern
-                existing_rule.destination = destination
+                existing_rule.destination = actions_data[0]["path"] if actions_data else ""  # ✅ INSERT THIS
                 existing_rule.include_subs = include_subs
-                existing_rule._condition_value = content_filter
                 existing_rule._condition_tree = conditions_data
+                existing_rule._action_list = actions_data or []
+
+                # Replace original rule in self.rules
+                if rule_index is not None:
+                    self.rules[rule_index] = existing_rule
+
             else:
-                rule = Rule(name, pattern, destination, include_subs)
+                first_dest = actions_data[0]["path"] if actions_data else ""
+                rule = Rule(name, pattern, first_dest, include_subs)
+                rule._condition_tree = conditions_data
+                rule._action_list = actions_data or []
                 self.rules.append(rule)
             
             self.save_rules()
             self.populate_rules_list(self.rules_content)
             self._initial_condition_row = None
+            self.mark_tab_clean(tab_name)
             self.close_tab(self.tab_buttons[tab_name], tab_name)
             self.switch_tab("Rules")
 
-    def copy_rule_ui(self, tab_name, name, pattern, include_subs, type_filter, compare, input_type, value, action, target):
-        existing_titles = set(self.tab_labels.keys()) | set(self.rule_tabs.keys())
-        index = 1
-        while f"New Rule #{index}" in existing_titles:
-            index += 1
-        title = f"New Rule #{index}"
+    def mark_tab_dirty(self, name):
+        if name not in self.unsaved_tabs:
+            self.unsaved_tabs.add(name)
+            if name in self.tab_labels and not self.tab_labels[name]["text"].endswith(" *"):
+                self.tab_labels[name]["text"] += " *"
 
-        self.add_tab(title)
-        rule_tab = tk.Frame(self.content_frame, bg="#f9f9f9")
-        self.rule_tabs[title] = rule_tab
-        self.switch_tab(title)
-
-        # TODO: Copy fields exactly as in add_rule with the provided values
-        # For brevity, you can extract the rule form into a reusable function later
+    def mark_tab_clean(self, name):
+        if name in self.unsaved_tabs:
+            self.unsaved_tabs.remove(name)
+            if name in self.tab_labels:
+                self.tab_labels[name]["text"] = self.tab_labels[name]["text"].rstrip(" *")
 
     def add_rule_group(self):
         print("Add Rule Group clicked")
@@ -500,12 +623,12 @@ class FileSorterApp:
 
 class ConditionGroup:
     def __init__(self, master, remove_callback=None, is_root=False, preset=None):
-        self.frame = tk.LabelFrame(master, text="Condition Group", bg="#f0f0f0", padx=5, pady=5)
+        self.frame = tk.Frame(master, bg="#eaeaea", padx=8, pady=6, bd=1, relief="groove")
         self.frame.pack(fill="x", pady=5)
 
         self.logic_cb = ttk.Combobox(self.frame, values=["All of the following", "Any of the following", "None of the following"], state="readonly", width=22)
         self.logic_cb.set("All of the following")
-        self.logic_cb.pack(anchor="w", padx=5, pady=(0, 5))
+        self.logic_cb.pack(anchor="w", padx=0, pady=(0, 5))
 
         self.children = []
         self.remove_callback = remove_callback
@@ -516,11 +639,9 @@ class ConditionGroup:
         ttk.Button(button_frame, text="➕ Add Condition", command=self.add_condition).pack(side="left", padx=2)
         ttk.Button(button_frame, text="➕ Add Group", command=self.add_group).pack(side="left", padx=2)
 
-        if not is_root and remove_callback:
+        if remove_callback:
             ttk.Button(button_frame, text="❌ Remove Group", command=self.remove).pack(side="left", padx=2)
 
-        # Add initial condition row
-        self.add_condition()
 
     def add_condition(self):
         row = ConditionRow(self.frame, self.remove_child)
@@ -544,11 +665,32 @@ class ConditionGroup:
             "logic": self.logic_cb.get(),
             "children": [child.get_data() for child in self.children]
         }
+    
+    @staticmethod
+    def from_data(master, data, remove_callback=None, is_root=False):
+        group = ConditionGroup(master, remove_callback, is_root)
+        group.logic_cb.set(data.get("logic", "All of the following"))
+
+        # remove auto-added first condition row
+        for child in group.children:
+            child.frame.destroy()
+        group.children.clear()
+
+        for child_data in data.get("children", []):
+            if "children" in child_data:
+                # it's a nested group
+                subgroup = ConditionGroup.from_data(group.frame, child_data, remove_callback)
+                group.children.append(subgroup)
+            else:
+                row = ConditionRow(group.frame, group.remove_child, preset=child_data)
+                group.children.append(row)
+
+        return group
 
 class ConditionRow:
     def __init__(self, master, remove_callback, is_first=False, preset=None):
         self.frame = tk.Frame(master, bg="#f9f9f9")
-        self.frame.pack(fill="x", pady=2)
+        self.frame.pack(fill="x", pady=3, padx=10)
 
         self.type_cb = ttk.Combobox(self.frame, values=["File name", "File extension", "File size", "File contents"], width=15)
         self.type_cb.set("File name")
@@ -587,6 +729,43 @@ class ConditionRow:
             "comparison": self.compare_cb.get(),
             "input_type": self.input_type_cb.get(),
             "value": self.value_entry.get()
+        }
+
+class ActionRow:
+    def __init__(self, master, remove_callback, preset=None):
+        self.frame = tk.Frame(master, bg="#f9f9f9")
+        self.frame.pack(fill="x", pady=3, padx=10)
+
+        self.action_cb = ttk.Combobox(self.frame, values=["Move file", "Rename file", "Delete file", "Copy file"], width=15)
+        self.action_cb.set("Move file")
+        self.action_cb.pack(side="left", padx=5)
+
+        self.path_var = tk.StringVar()
+        self.path_entry = tk.Entry(self.frame, textvariable=self.path_var)
+        self.path_entry.pack(side="left", fill="x", expand=True, padx=5)
+
+        ttk.Button(self.frame, text="...", command=self.browse).pack(side="left", padx=5)
+        ttk.Button(self.frame, text="❌", width=3, command=self.remove).pack(side="right", padx=5)
+
+        self.remove_callback = remove_callback
+
+        if preset:
+            self.action_cb.set(preset.get("action", "Move file"))
+            self.path_var.set(preset.get("path", ""))
+
+    def browse(self):
+        path = filedialog.askdirectory()
+        if path:
+            self.path_var.set(path)
+
+    def remove(self):
+        self.frame.destroy()
+        self.remove_callback(self)
+
+    def get_data(self):
+        return {
+            "action": self.action_cb.get(),
+            "path": self.path_var.get()
         }
 
 if __name__ == "__main__":
