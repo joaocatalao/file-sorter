@@ -2,7 +2,7 @@
     {
         "name": "Test Rule",
         "file_pattern": "C:/Users/Joao/Desktop",
-        "destination": "C:/Users/Joao/Desktop",
+        "destination": "C:/Users/joaocatalao/Desktop",
         "include_subs": false,
         "condition_tree": {
             "logic": "All of the following",
@@ -18,7 +18,41 @@
         "action_list": [
             {
                 "action": "Move file",
-                "path": "C:/Users/Joao/Desktop"
+                "path": "C:/Users/joaocatalao/Desktop"
+            }
+        ]
+    },
+    {
+        "name": "New Rule #1",
+        "file_pattern": "C:/Users/joaocatalao/Desktop",
+        "destination": "C:/Users/joaocatalao/Desktop",
+        "include_subs": false,
+        "condition_tree": {
+            "logic": "All of the following",
+            "children": [
+                {
+                    "type": "File name",
+                    "comparison": "Contains",
+                    "input_type": "Text",
+                    "value": "test"
+                },
+                {
+                    "logic": "All of the following",
+                    "children": [
+                        {
+                            "type": "File name",
+                            "comparison": "Contains",
+                            "input_type": "Text",
+                            "value": "test"
+                        }
+                    ]
+                }
+            ]
+        },
+        "action_list": [
+            {
+                "action": "Move file",
+                "path": "C:/Users/joaocatalao/Desktop"
             }
         ]
     }
