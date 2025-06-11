@@ -568,6 +568,9 @@ class FileSorterApp:
             add_action_row()
 
         def deferred_dirty_binding():
+            for row in action_rows:
+                row.defer_dirty = False
+            
             rule_name_var.trace_add("write", update_tab_name)
             folder_var.trace_add("write", lambda *_: self.mark_tab_dirty(title_container['title']))
             include_subs_var.trace_add("write", lambda *_: self.mark_tab_dirty(title_container['title']))
@@ -798,6 +801,7 @@ class ActionRow:
     def __init__(self, master, remove_callback, controller, tab_name, preset=None):
         self.controller = controller
         self.tab_name = tab_name
+        self.defer_dirty = True
 
         self.frame = tk.Frame(master, bg="#f9f9f9")
         self.frame.pack(fill="x", pady=3, padx=10)

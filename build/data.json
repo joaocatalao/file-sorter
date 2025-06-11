@@ -1,6 +1,6 @@
 [
     {
-        "name": "Test Rule",
+        "name": "Simple Rule Test",
         "file_pattern": "C:/Users/Joao/Desktop",
         "destination": "C:/Users/joaocatalao/Desktop",
         "include_subs": false,
@@ -23,7 +23,7 @@
         ]
     },
     {
-        "name": "New Rule #1",
+        "name": "Complex Rule Test",
         "file_pattern": "C:/Users/joaocatalao/Desktop",
         "destination": "C:/Users/joaocatalao/Desktop",
         "include_subs": false,
@@ -31,10 +31,10 @@
             "logic": "All of the following",
             "children": [
                 {
-                    "type": "File name",
-                    "comparison": "Contains",
+                    "type": "File extension",
+                    "comparison": "Is",
                     "input_type": "Text",
-                    "value": "test"
+                    "value": "pdf"
                 },
                 {
                     "logic": "All of the following",
@@ -42,7 +42,13 @@
                         {
                             "type": "File name",
                             "comparison": "Contains",
-                            "input_type": "Text",
+                            "input_type": "Date",
+                            "value": "test"
+                        },
+                        {
+                            "type": "File contents",
+                            "comparison": "Contains",
+                            "input_type": "Regex",
                             "value": "test"
                         }
                     ]
