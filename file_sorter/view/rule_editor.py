@@ -18,7 +18,32 @@ class RuleEditor(tk.Frame):
     def build_ui(self):
         print("[RuleEditor] build_ui() called")
 
-        header = tk.Frame(self, bg="#f0f0f0", height=50)
+        # --- Canvas + Scrollable Frame Wrapper ---
+        canvas = tk.Canvas(self, bg="#f9f9f9", borderwidth=0, highlightthickness=0)
+        v_scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=v_scrollbar.set)
+
+        v_scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        self.scrollable_frame = tk.Frame(canvas, bg="#f9f9f9")
+        canvas_window = canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+
+        def on_frame_resize(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def on_canvas_resize(event):
+            canvas.itemconfig(canvas_window, width=event.width)
+
+        self.scrollable_frame.bind("<Configure>", on_frame_resize)
+        canvas.bind("<Configure>", on_canvas_resize)
+
+        # Optional: scroll with mouse wheel
+        self.scrollable_frame.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", lambda ev: canvas.yview_scroll(-1*(ev.delta//120), "units")))
+        self.scrollable_frame.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+
+        # --- Everything below goes inside scrollable_frame ---
+        header = tk.Frame(self.scrollable_frame, bg="#f0f0f0", height=50)
         header.pack(fill='x')
 
         self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
@@ -27,28 +52,23 @@ class RuleEditor(tk.Frame):
 
         ttk.Label(header, text="Rule Name:").pack(side="left", padx=5)
         ttk.Entry(header, textvariable=self.rule_name).pack(side="left", padx=5)
-
         ttk.Button(header, text="💾 Save", command=self.save_rule).pack(side="right", padx=10)
 
-        content = tk.Frame(self, bg="#f9f9f9")
+        content = tk.Frame(self.scrollable_frame, bg="#f9f9f9")
         content.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Folder Picker
         folder_frame = ttk.LabelFrame(content, text="Monitor Folder")
         folder_frame.pack(fill="x", pady=10)
         ttk.Entry(folder_frame, textvariable=self.folder_path).pack(side="left", fill="x", expand=True, padx=5)
         ttk.Button(folder_frame, text="...", command=self.browse_folder).pack(side="left", padx=5)
         ttk.Checkbutton(folder_frame, text="Include subfolders", variable=self.include_subs).pack(side="left", padx=10)
 
-        # Conditions
         self.cond_frame = ttk.LabelFrame(content, text="If")
         self.cond_frame.pack(fill="x", pady=10)
-
         self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
         if self.rule and "conditions" in self.rule.config:
             self.condition_group.load_data(self.rule.config["conditions"])
 
-        # Actions
         action_frame = ttk.LabelFrame(content, text="Then")
         action_frame.pack(fill="x", pady=10)
 
