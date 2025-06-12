@@ -14,22 +14,36 @@ class ConditionGroup:
         self.children = []
         self.controller = controller
 
-        button_frame = tk.Frame(self.frame, bg="#eaeaea")
-        button_frame.pack(anchor="w", padx=5, pady=5)
+        self.button_frame = tk.Frame(self.frame, bg="#eaeaea")
+        self.button_frame.pack(anchor="w", padx=5, pady=5)
 
-        ttk.Button(button_frame, text="➕ Condition", command=self.add_condition).pack(side="left", padx=2)
-        ttk.Button(button_frame, text="➕ Group", command=self.add_group).pack(side="left", padx=2)
+        ttk.Button(self.button_frame, text="➕ Condition", command=self.add_condition).pack(side="left", padx=2)
+        ttk.Button(self.button_frame, text="➕ Group", command=self.add_group).pack(side="left", padx=2)
 
-    def add_condition(self):
-        row = ConditionRow(self.frame, controller=self.controller)
+    def add_condition(self, preset=None):
+        row = ConditionRow(self.frame, controller=self.controller, preset=preset, on_delete=lambda: self.remove_child(row))
         self.children.append(row)
 
-    def add_group(self):
+    def add_group(self, preset=None):
         group = ConditionGroup(self.frame, controller=self.controller)
         self.children.append(group)
+        if preset:
+            group.load_data(preset)
+
+    def remove_child(self, child):
+        if child in self.children:
+            self.children.remove(child)
 
     def get_data(self):
         return {
             "logic": self.logic_cb.get(),
             "children": [child.get_data() for child in self.children]
         }
+
+    def load_data(self, data):
+        self.logic_cb.set(data.get("logic", "All"))
+        for child in data.get("children", []):
+            if "children" in child:
+                self.add_group(preset=child)
+            else:
+                self.add_condition(preset=child)

@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-
 from view.widgets.condition_group import ConditionGroup
 from view.widgets.action_row import ActionRow
 
@@ -40,16 +39,10 @@ class RuleEditor(tk.Frame):
         # Conditions
         self.cond_frame = ttk.LabelFrame(content, text="If")
         self.cond_frame.pack(fill="x", pady=10)
-        self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
 
-        # Preload existing condition tree if present
+        self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
         if self.rule and "conditions" in self.rule.config:
-            for child in self.rule.config["conditions"].get("children", []):
-                if "children" in child:
-                    subgroup = ConditionGroup(self.cond_frame, controller=self.controller)
-                    self.condition_group.children.append(subgroup)
-                else:
-                    self.condition_group.add_condition(preset=child)
+            self.condition_group.load_data(self.rule.config["conditions"])
 
         # Actions
         action_frame = ttk.LabelFrame(content, text="Then")
@@ -76,7 +69,7 @@ class RuleEditor(tk.Frame):
         self.action_rows.append(row)
 
     def remove_action_row(self, row):
-        row.destroy()
+        row.frame.destroy()
         if row in self.action_rows:
             self.action_rows.remove(row)
 
