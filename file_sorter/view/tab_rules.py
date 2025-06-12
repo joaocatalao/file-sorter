@@ -33,15 +33,68 @@ class RulesTab(tk.Frame):
             return
 
         for index, rule in enumerate(rules):
-            frame = ttk.Frame(self.list_frame)
-            frame.pack(fill="x", pady=5)
+            container = ttk.Frame(self.list_frame)
+            container.pack(fill="x", pady=6, padx=5, anchor="w")
 
-            dest = rule.config.get("destination") or rule.config.get("pattern") or ""
-            label = ttk.Label(frame, text=f"{rule.name} → {dest}", anchor="w")
-            label.pack(side="left", expand=True, fill="x")
+            is_expanded = tk.BooleanVar(value=False)
 
-            ttk.Button(frame, text="Edit", command=lambda r=rule, i=index: self.controller.open_rule_editor(rule=r, index=i)).pack(side="right", padx=2)
-            ttk.Button(frame, text="Delete", command=lambda r=rule: self.delete_rule(r)).pack(side="right", padx=2)
+            # Title row
+            title_frame = ttk.Frame(container)
+            title_frame.pack(fill="x")
+
+            toggle_btn = ttk.Label(title_frame, text="▶", width=2)
+            toggle_btn.pack(side="left")
+
+            name_label = ttk.Label(title_frame, text=f"📄 {rule.name}", font=("Segoe UI", 10))
+            name_label.pack(side="left", anchor="w")
+
+            # Buttons
+            btns = ttk.Frame(title_frame)
+            btns.pack(side="right")
+            ttk.Button(btns, text="✏️", width=3, command=lambda r=rule, i=index: self.controller.open_rule_editor(rule=r, index=i)).pack(side="right", padx=2)
+            ttk.Button(btns, text="🗑", width=3, command=lambda r=rule: self.delete_rule(r)).pack(side="right", padx=2)
+
+            # Details (must come first before lambda binds)
+            details_frame = ttk.Frame(container)
+
+            folder = rule.config.get("pattern") or rule.config.get("destination") or "(no folder)"
+            ttk.Label(details_frame, text=f"📁 Folder: {folder}", font=("Segoe UI", 9)).pack(anchor="w")
+
+            cond_block = rule.config.get("conditions", {})
+            logic = cond_block.get("logic", "All")
+            children = cond_block.get("children", [])
+            cond_descs = []
+
+            for cond in children:
+                if isinstance(cond, dict) and "type" in cond:
+                    cond_descs.append(f"{cond['type']} {cond['comparison']} \"{cond['value']}\"")
+                elif isinstance(cond, dict) and "logic" in cond:
+                    cond_descs.append(f"[{cond['logic']} group]")
+
+            cond_summary = ", ".join(cond_descs) if cond_descs else "(none)"
+            ttk.Label(details_frame, text=f"📌 Conditions: {logic} | {cond_summary}", font=("Segoe UI", 9)).pack(anchor="w")
+
+            actions = rule.config.get("actions", [])
+            action_descs = []
+            for a in actions:
+                action = a.get("action", "?")
+                path = a.get("path", "")
+                action_descs.append(f"{action} → {path}")
+            action_summary = ", ".join(action_descs) if action_descs else "(none)"
+            ttk.Label(details_frame, text=f"⚙️ Actions: {action_summary}", font=("Segoe UI", 9)).pack(anchor="w")
+
+            # Toggle function — now after details_frame exists
+            def toggle(frame, flag, btn):
+                flag.set(not flag.get())
+                if flag.get():
+                    btn.config(text="▼")
+                    frame.pack(fill="x", padx=20)
+                else:
+                    btn.config(text="▶")
+                    frame.forget()
+
+            toggle_btn.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
+            name_label.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
 
     def add_rule(self):
         self.controller.open_rule_editor()

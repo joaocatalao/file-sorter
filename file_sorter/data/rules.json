@@ -76,23 +76,5 @@
             ]
         },
         "rule_type": "MoveByExtensionRule"
-    },
-    {
-        "name": "Test Rule",
-        "config": {
-            "pattern": "test",
-            "include_subs": false,
-            "conditions": {
-                "logic": "All",
-                "children": []
-            },
-            "actions": [
-                {
-                    "action": "Move",
-                    "path": "test"
-                }
-            ]
-        },
-        "rule_type": "MoveByExtensionRule"
     }
 ]

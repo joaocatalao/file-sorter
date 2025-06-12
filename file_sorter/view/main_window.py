@@ -10,7 +10,7 @@ class MainWindow:
         self.controller = controller
         self.root.title("Document Sorter")
 
-        icon_path = os.path.join(os.path.dirname(__file__), "..", "favicon.ico")
+        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "favicon.ico"))
         if os.path.exists(icon_path):
             self.root.iconbitmap(icon_path)
 
