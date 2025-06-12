@@ -1,7 +1,9 @@
-import tkinter as tk
-from tkinter import ttk
 from view.tab_rules import RulesTab
 from view.tab_logs import LogsTab
+from view.tab_settings import SettingsTab
+
+import tkinter as tk
+from tkinter import ttk
 import os
 
 class MainWindow:
@@ -78,8 +80,15 @@ class MainWindow:
                 label.config(text=label.cget("text")[:-2])  # remove ' *'
 
     def open_settings(self):
-        from tkinter import messagebox
-        messagebox.showinfo("Settings", "Settings dialog would open here.")
+        if "Settings" in self.tabs:
+            self.show_tab("Settings")
+            return
+
+        def build_settings(parent):
+            from view.tab_settings import SettingsTab
+            return SettingsTab(parent, controller=self.controller)
+
+        self.open_rule_tab("Settings", build_settings)
 
     def open_rule_tab(self, name, widget_factory, display_name=None):
         if name in self.tabs:

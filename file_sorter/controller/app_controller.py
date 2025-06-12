@@ -12,13 +12,13 @@ class AppController:
         self.rule_manager.load_plugins()
         self.rule_manager.load_rules()
 
+        self.settings = {
+            "close_tab_after_save": True,  # 🧩 will use later
+            "minimize_to_tray": False
+        }
+        
         self.view = MainWindow(root, controller=self)
         self.view.show_rules(self.rule_manager.rules)
-
-        self.settings = {
-            "close_tab_after_save": True  # 🧩 will use later
-        }
-
 
     def _generate_unique_rule_title(self):
         base = "New Rule"
