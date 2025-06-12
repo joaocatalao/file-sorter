@@ -15,6 +15,19 @@ class RuleEditor(tk.Frame):
 
         self.build_ui()
 
+        self.is_dirty = False
+        self.tab_name = rule.name if rule else None  # track for dirty mark
+
+        self.rule_name.trace_add("write", lambda *_: self.mark_dirty())
+        self.folder_path.trace_add("write", lambda *_: self.mark_dirty())
+        self.include_subs.trace_add("write", lambda *_: self.mark_dirty())
+
+    def mark_dirty(self):
+        if not self.is_dirty:
+            self.is_dirty = True
+            if self.tab_name:
+                self.controller.view.mark_tab_dirty(self.tab_name)
+
     def build_ui(self):
         print("[RuleEditor] build_ui() called")
 
@@ -119,4 +132,15 @@ class RuleEditor(tk.Frame):
             config=rule_data,
             index=self.rule_index
         )
+
+        self.rule = rule  # ✅ Needed for later edits
+        self.is_dirty = False  # ✅ Reset dirty flag
+
+        # If we should close the tab after save
+        if self.controller.settings.get("close_tab_after_save", False):
+            self.controller.view.close_tab(self.tab_name)
+        else:
+            self.controller.view.mark_tab_clean(self.tab_name)  # ✅ Remove *
+
         messagebox.showinfo("Saved", f"Rule '{rule.name}' saved successfully.")
+        

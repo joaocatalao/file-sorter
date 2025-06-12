@@ -65,30 +65,44 @@ class MainWindow:
     def show_rules(self, rules):
         self.tabs["Rules"]["frame"].display_rules(rules)
 
+    def mark_tab_dirty(self, name):
+        if name in self.tabs:
+            label = self.tabs[name]["label"]
+            if not label.cget("text").endswith("*"):
+                label.config(text=label.cget("text") + " *")
+
+    def mark_tab_clean(self, name):
+        if name in self.tabs:
+            label = self.tabs[name]["label"]
+            if label.cget("text").endswith("*"):
+                label.config(text=label.cget("text")[:-2])  # remove ' *'
+
     def open_settings(self):
         from tkinter import messagebox
         messagebox.showinfo("Settings", "Settings dialog would open here.")
 
-    def open_rule_tab(self, title, widget_factory):
-        if title in self.tabs:
-            self.show_tab(title)
+    def open_rule_tab(self, name, widget_factory, display_name=None):
+        if name in self.tabs:
+            self.show_tab(name)
             return
 
-        print(f"[MainWindow] Creating new tab for: {title}")
+        print(f"[MainWindow] Creating new tab for: {name}")
 
         container = tk.Frame(self.tab_bar, bg="#dcdcdc")
         container.pack(side="left")
-        print(f"[MainWindow] Tab '{title}' content packed.")
+        print(f"[MainWindow] Tab '{name}' content packed.")
 
-        label = tk.Label(container, text=title, bg="#e0e0e0", padx=12, pady=4, bd=1, relief="raised")
+        label_name = display_name or name
+
+        label = tk.Label(container, text=label_name, bg="#e0e0e0", padx=12, pady=4, bd=1, relief="raised")
         label.pack(side="left")
-        label.bind("<Button-1>", lambda e, n=title: self.show_tab(n))
-        label.bind("<Enter>", lambda e, n=title: label.config(bg="#e6e6e6"))
-        label.bind("<Leave>", lambda e, n=title: label.config(bg="#e0e0e0" if self.current_tab != n else "#ffffff"))
+        label.bind("<Button-1>", lambda e, n=name: self.show_tab(n))
+        label.bind("<Enter>", lambda e, n=name: label.config(bg="#e6e6e6"))
+        label.bind("<Leave>", lambda e, n=name: label.config(bg="#e0e0e0" if self.current_tab != n else "#ffffff"))
 
         close_btn = tk.Label(container, text="×", bg="#e0e0e0", padx=6, pady=4, bd=1, relief="raised")
         close_btn.pack(side="left")
-        close_btn.bind("<Button-1>", lambda e, n=title: self.close_tab(n))
+        close_btn.bind("<Button-1>", lambda e, n=name: self.close_tab(n))
         close_btn.bind("<Enter>", lambda e: close_btn.config(bg="#ffdddd"))
         close_btn.bind("<Leave>", lambda e: close_btn.config(bg="#e0e0e0"))
 
@@ -97,30 +111,44 @@ class MainWindow:
 
         editor_widget = widget_factory(frame)
         editor_widget.pack(fill="both", expand=True)
+        editor_widget.tab_name = name
 
-        self.tabs[title] = {
+        self.tabs[name] = {
             "label": label,
             "close": close_btn,
             "frame": frame,
             "container": container
         }
 
-        self.show_tab(title)
+        self.show_tab(name)
 
     def close_tab(self, name):
         if name not in self.tabs:
             return
 
         tab = self.tabs[name]
+        widget_frame = tab["frame"]
+        
+        # Check if this frame has children and is a RuleEditor
+        if widget_frame.winfo_children():
+            editor = widget_frame.winfo_children()[0]
+            if hasattr(editor, "is_dirty") and editor.is_dirty:
+                from tkinter import messagebox
+                confirm = messagebox.askyesnocancel("Unsaved Changes", f"Do you want to save changes to '{name}' before closing?")
+                if confirm is None:
+                    return  # cancel
+                elif confirm:
+                    if hasattr(editor, "save_rule"):
+                        editor.save_rule()
 
-        # Safely destroy all widgets
+        # Proceed to destroy
         tab["label"].destroy()
         if "close" in tab:
             tab["close"].destroy()
         if "frame" in tab:
             tab["frame"].destroy()
         if "container" in tab:
-            tab["container"].destroy()  # <- this is the actual tab bar space
+            tab["container"].destroy()
 
         del self.tabs[name]
 
