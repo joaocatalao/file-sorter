@@ -20,9 +20,8 @@ class AppController:
             self.view.show_tab(title)
             return
 
-        editor = RuleEditor(self.view.content_frame, controller=self, rule=rule, rule_index=index)
-        editor.update_idletasks()
-        self.view.open_rule_tab(title, editor)
+        # Don't create RuleEditor here — just pass context
+        self.view.open_rule_tab(title, rule=rule, index=index)
 
     def create_or_update_rule(self, name, config, index=None):
         rule_cls = next(iter(self.rule_manager.available_rule_classes.values()))

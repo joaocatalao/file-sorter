@@ -91,7 +91,9 @@ class MainWindow:
 
         frame = tk.Frame(self.content_frame, bg="#ffffff")
         frame.place(relwidth=1, relheight=1)
-        editor_widget.pack(in_=frame, fill="both", expand=True)
+
+        editor_widget.master = frame
+        editor_widget.pack(fill="both", expand=True)
 
         self.tabs[title] = {
             "label": label,

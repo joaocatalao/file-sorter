@@ -41,6 +41,8 @@ class RuleEditor(tk.Frame):
         self.cond_frame.pack(fill="x", pady=10)
 
         self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
+        self.condition_group.frame.pack(fill="x", expand=True)  # 🛠 Make condition group visible!
+
         if self.rule and "conditions" in self.rule.config:
             self.condition_group.load_data(self.rule.config["conditions"])
 
