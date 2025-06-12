@@ -69,13 +69,16 @@ class MainWindow:
         from tkinter import messagebox
         messagebox.showinfo("Settings", "Settings dialog would open here.")
 
-    def open_rule_tab(self, title, editor_widget):
+    def open_rule_tab(self, title, widget_factory):
         if title in self.tabs:
             self.show_tab(title)
             return
 
+        print(f"[MainWindow] Creating new tab for: {title}")
+
         container = tk.Frame(self.tab_bar, bg="#dcdcdc")
         container.pack(side="left")
+        print(f"[MainWindow] Tab '{title}' content packed.")
 
         label = tk.Label(container, text=title, bg="#e0e0e0", padx=12, pady=4, bd=1, relief="raised")
         label.pack(side="left")
@@ -92,7 +95,7 @@ class MainWindow:
         frame = tk.Frame(self.content_frame, bg="#ffffff")
         frame.place(relwidth=1, relheight=1)
 
-        editor_widget.master = frame
+        editor_widget = widget_factory(frame)
         editor_widget.pack(fill="both", expand=True)
 
         self.tabs[title] = {

@@ -5,6 +5,8 @@ from view.widgets.action_row import ActionRow
 
 class RuleEditor(tk.Frame):
     def __init__(self, parent, controller, rule=None, rule_index=None):
+        print("[RuleEditor] __init__ called")
+
         super().__init__(parent, bg="#f9f9f9")
         self.controller = controller
         self.rule = rule
@@ -14,6 +16,8 @@ class RuleEditor(tk.Frame):
         self.build_ui()
 
     def build_ui(self):
+        print("[RuleEditor] build_ui() called")
+
         header = tk.Frame(self, bg="#f0f0f0", height=50)
         header.pack(fill='x')
 
@@ -41,8 +45,6 @@ class RuleEditor(tk.Frame):
         self.cond_frame.pack(fill="x", pady=10)
 
         self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
-        self.condition_group.frame.pack(fill="x", expand=True)  # 🛠 Make condition group visible!
-
         if self.rule and "conditions" in self.rule.config:
             self.condition_group.load_data(self.rule.config["conditions"])
 
@@ -60,6 +62,8 @@ class RuleEditor(tk.Frame):
                 self.add_action_row(preset=action_cfg)
         else:
             self.add_action_row()
+
+        print("[RuleEditor] UI built successfully")
 
     def browse_folder(self):
         path = filedialog.askdirectory()

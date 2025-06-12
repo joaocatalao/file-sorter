@@ -1,1 +1,56 @@
-[]
+[
+    {
+        "name": "Complex Rule Test",
+        "config": {
+            "pattern": "C:/Users/Joao/Desktop",
+            "include_subs": false,
+            "conditions": {
+                "logic": "All",
+                "children": [
+                    {
+                        "type": "Extension",
+                        "comparison": "Is",
+                        "value": "pdf"
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "action": "Move",
+                    "path": "C:/Users/Joao/Desktop"
+                }
+            ]
+        },
+        "rule_type": "MoveByExtensionRule"
+    }
+]

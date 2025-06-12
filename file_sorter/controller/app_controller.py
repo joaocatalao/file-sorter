@@ -15,13 +15,17 @@ class AppController:
 
     def open_rule_editor(self, rule=None, index=None):
         title = rule.name if rule else f"New Rule #{len(self.rule_manager.rules) + 1}"
+        print(f"[AppController] Opening RuleEditor tab: {title}")
 
         if title in self.view.tabs:
             self.view.show_tab(title)
             return
 
-        # Don't create RuleEditor here — just pass context
-        self.view.open_rule_tab(title, rule=rule, index=index)
+        def build_editor(parent):
+            print("[AppController] Instantiating RuleEditor in container")
+            return RuleEditor(parent, controller=self, rule=rule, rule_index=index)
+
+        self.view.open_rule_tab(title, build_editor)
 
     def create_or_update_rule(self, name, config, index=None):
         rule_cls = next(iter(self.rule_manager.available_rule_classes.values()))
