@@ -159,23 +159,29 @@ class MainWindow:
         if "container" in tab:
             tab["container"].destroy()
 
-        del self.tabs[name]
+        if name in self.tabs:
+            del self.tabs[name]
+        else:
+            print(f"[⚠️ close_tab] Tried to close unknown tab: '{name}'")
+            print("🔎 Available tabs:", list(self.tabs.keys()))
 
         fallback = "Rules" if "Rules" in self.tabs else next(iter(self.tabs), None)
         if fallback:
             self.show_tab(fallback)
 
     def rename_tab(self, old_name, new_name):
-        
         if old_name in self.tabs:
             tab = self.tabs.pop(old_name)
             self.tabs[new_name] = tab
+
             current_text = tab["label"].cget("text")
             is_dirty = current_text.endswith("*")
             tab["label"].config(text=new_name + (" *" if is_dirty else ""))
 
             if "close" in tab:
-                # ✅ Rebind close button to new tab name
                 tab["close"].bind("<Button-1>", lambda e, n=new_name: self.close_tab(n))
+
+            # Ensure we update current_tab
             if self.current_tab == old_name:
                 self.current_tab = new_name
+
