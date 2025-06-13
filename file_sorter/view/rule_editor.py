@@ -16,12 +16,27 @@ class RuleEditor(tk.Frame):
         self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
         self.tab_name = self.rule_name.get()  # ✅ Use the current input name as tab_name
 
+        def on_rule_name_change(*_):
+            new_name = self.rule_name.get().strip()
+
+            if not new_name:
+                return  # Don’t rename to empty string
+
+            if new_name != self.tab_name:
+                # Save old reference and rename tab
+                self.controller.view.rename_tab(self.tab_name, new_name)
+                self.tab_name = new_name
+
+            # Always mark as dirty even if name matches
+            self.mark_dirty()
+
+        self.rule_name.trace_add("write", on_rule_name_change)
+
         self.folder_path = tk.StringVar(value=self.rule.config.get("pattern", "") if self.rule else "")
         self.include_subs = tk.BooleanVar(value=self.rule.config.get("include_subs", False) if self.rule else False)
 
         self.is_dirty = False  # ✅ Set early
 
-        self.rule_name.trace_add("write", lambda *_: self.mark_dirty())
         self.folder_path.trace_add("write", lambda *_: self.mark_dirty())
         self.include_subs.trace_add("write", lambda *_: self.mark_dirty())
 
@@ -124,11 +139,53 @@ class RuleEditor(tk.Frame):
         if not new_name:
             messagebox.showerror("Error", "Rule name is required.")
             return
+        
+        old_tab_name = self.tab_name
+
+        # Auto-rename if name exists and it's a new rule or renaming another
+        existing_names = {r.name for r in self.controller.rule_manager.rules}
+        base_name = new_name
+        suffix = 1
+
+        def rules_match(r1, r2):
+            return r1.name == r2.name and r1.config == r2.config
 
         existing_names = {r.name for r in self.controller.rule_manager.rules}
-        if (self.rule is None or new_name != self.rule.name) and new_name in existing_names:
-            messagebox.showerror("Error", f"A rule named '{new_name}' already exists.")
-            return
+        base_name = new_name
+        suffix = 1
+
+        def rules_match(r1, name, config):
+            return r1.name == name and r1.config == config
+
+        existing_names = {r.name for r in self.controller.rule_manager.rules}
+        base_name = new_name
+        suffix = 1
+
+        # Check if any *other* rule already has this name and config
+        is_duplicate = any(
+            rules_match(r, new_name, {
+                "pattern": self.folder_path.get().strip(),
+                "include_subs": self.include_subs.get(),
+                "conditions": self.condition_group.get_data(),
+                "actions": [row.get_data() for row in self.action_rows]
+            })
+            for r in self.controller.rule_manager.rules
+            if r is not self.rule
+        )
+
+        # Apply (Copy), (Copy 2), etc only if truly duplicated
+        while new_name in existing_names and is_duplicate:
+            suffix_text = "" if suffix == 1 else f" {suffix}"
+            new_name = f"{base_name} (Copy{suffix_text})"
+            suffix += 1
+
+        # Update the rule_name field (UI) and internal use
+        self.rule_name.set(new_name)
+
+        # Update tab label if the name changed (e.g. due to auto-renaming)
+        if new_name != old_tab_name:
+            self.controller.view.rename_tab(old_tab_name, new_name)
+            self.tab_name = new_name  # update internal reference
 
         rule_data = {
             "pattern": self.folder_path.get().strip(),
