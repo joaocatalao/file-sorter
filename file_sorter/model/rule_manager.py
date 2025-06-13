@@ -1,5 +1,6 @@
 from model.rule_base import BaseRule
 from model.rule_group import RuleGroup
+from model.dynamic_rule import DynamicRule
 
 import os
 import json
@@ -14,6 +15,11 @@ class RuleManager:
         self.plugin_dir = plugin_dir or os.path.join(base_dir, "..", "plugins")
         self.data_file = data_file or os.path.join(base_dir, "..", "data", "rules.json")
         self.available_rule_classes = {}
+
+        self.available_rule_classes = {
+                    "DynamicRule": DynamicRule   # ✅ Register it up front
+                }
+
         self.rules = []
 
     def load_plugins(self):
@@ -58,7 +64,7 @@ class RuleManager:
                 rule_type = rd.get("rule_type")
                 if rule_type and rule_type in self.available_rule_classes:
                     rule_cls = self.available_rule_classes[rule_type]
-                    rule = rule_cls(rd["name"], rd)
+                    rule = rule_cls(rd["name"], rd.get("config", {}))
                     self.rules.append(rule)
                 else:
                     print(f"⚠️ Unknown rule type: {rule_type}")

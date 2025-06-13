@@ -14,19 +14,22 @@ class RuleEditor(tk.Frame):
         self.action_rows = []
 
         self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
+        self.tab_name = self.rule_name.get()  # ✅ Use the current input name as tab_name
+
         self.folder_path = tk.StringVar(value=self.rule.config.get("pattern", "") if self.rule else "")
         self.include_subs = tk.BooleanVar(value=self.rule.config.get("include_subs", False) if self.rule else False)
 
-        self.build_ui()
-
-        self.is_dirty = False
-        self.tab_name = rule.name if rule else None
+        self.is_dirty = False  # ✅ Set early
 
         self.rule_name.trace_add("write", lambda *_: self.mark_dirty())
         self.folder_path.trace_add("write", lambda *_: self.mark_dirty())
         self.include_subs.trace_add("write", lambda *_: self.mark_dirty())
 
+        self.build_ui()  # ✅ After trace bindings
+
     def mark_dirty(self):
+        if not self.tab_name:
+            self.tab_name = self.rule_name.get()  # fallback for any future use
         if not self.is_dirty:
             self.is_dirty = True
             if self.tab_name:
@@ -64,7 +67,7 @@ class RuleEditor(tk.Frame):
         header.pack(fill='x')
 
         ttk.Label(header, text="Rule Name:").pack(side="left", padx=5)
-        ttk.Entry(header, textvariable=self.rule_name).pack(side="left", padx=5)
+        ttk.Entry(header, textvariable=self.rule_name).pack(side="left", fill="x", expand=True, padx=5)
         ttk.Button(header, text="💾 Save", command=self.save_rule).pack(side="right", padx=10)
 
         content = tk.Frame(self.scrollable_frame, bg="#f9f9f9")
@@ -113,12 +116,19 @@ class RuleEditor(tk.Frame):
             self.action_rows.remove(row)
 
     def save_rule(self):
-        if not self.rule_name.get().strip():
-            messagebox.showerror("Error", "Rule name is required.")
-            return
 
         actions_data = [row.get_data() for row in self.action_rows]
         conditions_data = self.condition_group.get_data()
+
+        new_name = self.rule_name.get().strip()
+        if not new_name:
+            messagebox.showerror("Error", "Rule name is required.")
+            return
+
+        existing_names = {r.name for r in self.controller.rule_manager.rules}
+        if (self.rule is None or new_name != self.rule.name) and new_name in existing_names:
+            messagebox.showerror("Error", f"A rule named '{new_name}' already exists.")
+            return
 
         rule_data = {
             "pattern": self.folder_path.get().strip(),

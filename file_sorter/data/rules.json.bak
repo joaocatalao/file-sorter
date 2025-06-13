@@ -2,7 +2,7 @@
     {
         "name": "Simple Rule Test",
         "config": {
-            "pattern": "C:/Users/Joao/Desktop",
+            "pattern": "C:/Users/joaocatalao/Desktop",
             "include_subs": false,
             "conditions": {
                 "logic": "All",
@@ -17,10 +17,118 @@
             "actions": [
                 {
                     "action": "Move",
-                    "path": "C:/Users/Joao/Desktop"
+                    "path": "C:/Users/joaocatalao/Desktop"
                 }
             ]
         },
-        "rule_type": "MoveByExtensionRule"
+        "rule_type": "DynamicRule"
+    },
+    {
+        "name": "Complex Rule Test",
+        "config": {
+            "pattern": "C:/Users/joaocatalao/Desktop",
+            "include_subs": false,
+            "conditions": {
+                "logic": "All",
+                "children": [
+                    {
+                        "type": "Extension",
+                        "comparison": "Is",
+                        "value": "pdf"
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "action": "Move",
+                    "path": "C:/Users/joaocatalao/Desktop"
+                }
+            ]
+        },
+        "rule_type": "DynamicRule"
+    },
+    {
+        "name": "Complex Rule Test 2",
+        "config": {
+            "pattern": "C:/Users/joaocatalao/Desktop",
+            "include_subs": false,
+            "conditions": {
+                "logic": "All",
+                "children": [
+                    {
+                        "type": "Extension",
+                        "comparison": "Is",
+                        "value": "pdf"
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "action": "Move",
+                    "path": "C:/Users/joaocatalao/Desktop"
+                }
+            ]
+        },
+        "rule_type": "DynamicRule"
     }
 ]

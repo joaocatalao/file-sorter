@@ -1,10 +1,12 @@
-from view.main_window import MainWindow
 from model.rule_manager import RuleManager
+from model.dynamic_rule import DynamicRule
+from view.main_window import MainWindow
 from view.rule_editor import RuleEditor
 from config.settings import load_settings, save_settings
 
 import tkinter as tk
 import random
+import copy
 
 class AppController:
     def __init__(self, root):
@@ -54,7 +56,7 @@ class AppController:
         self.view.open_rule_tab(internal_id, build_editor, display_name=title)
 
     def create_or_update_rule(self, name, config, index=None):
-        rule_cls = next(iter(self.rule_manager.available_rule_classes.values()))
+        rule_cls = self.rule_manager.available_rule_classes.get("DynamicRule")
         new_rule = rule_cls(name, config)
 
         if index is not None:
@@ -66,3 +68,27 @@ class AppController:
         self.view.show_rules(self.rule_manager.rules)
 
         return new_rule
+    
+    def duplicate_rule(self, rule):
+        new_config = copy.deepcopy(rule.config)
+        base_name = f"{rule.name} (Copy)"
+        existing_names = {r.name for r in self.rule_manager.rules}
+        count = 1
+        new_name = base_name
+
+        while new_name in existing_names:
+            count += 1
+            new_name = f"{base_name} {count}"
+
+        duplicate = DynamicRule(new_name, new_config)
+        internal_tab_id = f"{new_name} ({random.randint(1000,9999)})"
+
+        def build_editor(parent):
+            editor = RuleEditor(parent, controller=self, rule=duplicate, rule_index=None)
+            editor.tab_name = internal_tab_id  # ✅ Set to internal ID, not rule name
+            editor.is_dirty = True
+            self.root.after(0, lambda: self.view.mark_tab_dirty(internal_tab_id))
+            return editor
+
+        self.view.open_rule_tab(internal_tab_id, build_editor, display_name=new_name)
+

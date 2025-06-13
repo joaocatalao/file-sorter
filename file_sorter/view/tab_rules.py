@@ -1,5 +1,8 @@
+from model.dynamic_rule import DynamicRule
+
 import tkinter as tk
 from tkinter import ttk
+import copy
 
 class RulesTab(tk.Frame):
     def __init__(self, parent, controller):
@@ -63,7 +66,7 @@ class RulesTab(tk.Frame):
         btns.pack(side="right")
         ttk.Button(btns, text="✏️", width=3, command=lambda r=rule, i=index: self.controller.open_rule_editor(rule=r, index=i)).pack(side="right", padx=2)
         ttk.Button(btns, text="🗑", width=3, command=lambda r=rule: self.delete_rule(r)).pack(side="right", padx=2)
-
+        ttk.Button(btns, text="📄", width=3, command=lambda r=rule: self.controller.duplicate_rule(r)).pack(side="right", padx=2)
         details_frame = ttk.Frame(container)
 
         folder = rule.config.get("pattern") or rule.config.get("destination") or "(no folder)"
@@ -106,6 +109,14 @@ class RulesTab(tk.Frame):
 
     def add_rule(self):
         self.controller.open_rule_editor()
+    
+    def delete_rule(self, rule):
+        confirm = tk.messagebox.askyesno("Delete Rule", f"Are you sure you want to delete '{rule.name}'?")
+        if confirm:
+            if rule in self.controller.rule_manager.rules:
+                self.controller.rule_manager.rules.remove(rule)
+                self.controller.rule_manager.save_rules()
+                self.controller.view.show_rules(self.controller.rule_manager.rules)
 
     def add_group(self):
         def on_submit():
