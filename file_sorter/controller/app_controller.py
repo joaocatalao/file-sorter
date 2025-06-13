@@ -1,6 +1,7 @@
 from view.main_window import MainWindow
 from model.rule_manager import RuleManager
 from view.rule_editor import RuleEditor
+from config.settings import load_settings, save_settings
 
 import tkinter as tk
 import random
@@ -12,10 +13,7 @@ class AppController:
         self.rule_manager.load_plugins()
         self.rule_manager.load_rules()
 
-        self.settings = {
-            "close_tab_after_save": True,  # 🧩 will use later
-            "minimize_to_tray": False
-        }
+        self.settings = load_settings()
         
         self.view = MainWindow(root, controller=self)
         self.view.show_rules(self.rule_manager.rules)

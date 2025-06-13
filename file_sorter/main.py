@@ -1,3 +1,7 @@
+from controller.app_controller import AppController
+from core.tray import TrayManager
+from config.settings import save_settings
+
 import tkinter as tk
 import os
 import platform
@@ -18,6 +22,20 @@ from controller.app_controller import AppController
 
 if __name__ == "__main__":
     root = tk.Tk()
+    controller = AppController(root)
+
+    tray_manager = TrayManager(root, on_restore=lambda: root.deiconify())
+
+    def on_close():
+        if controller.settings.get("minimize_to_tray"):
+            root.withdraw()
+            tray_manager.run()
+        else:
+            root.destroy()
+
+        save_settings(controller.settings)
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
 
     default_font = tkFont.nametofont("TkDefaultFont")
     default_font.configure(family="Segoe UI", size=10)
@@ -35,5 +53,4 @@ if __name__ == "__main__":
 
     root.minsize(800, 600)
 
-    AppController(root)
     root.mainloop()
