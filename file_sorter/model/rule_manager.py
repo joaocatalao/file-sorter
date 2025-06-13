@@ -23,6 +23,11 @@ class RuleManager:
         self.rules = []
 
     def load_plugins(self):
+        
+        if not os.path.exists(self.plugin_dir):
+            print(f"[⚠️] Plugin directory missing: {self.plugin_dir}")
+            return  # Skip if no plugins directory
+
         for file in os.listdir(self.plugin_dir):
             if file.endswith(".py") and not file.startswith("_"):
                 modname = file[:-3]

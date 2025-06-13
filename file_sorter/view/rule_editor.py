@@ -179,14 +179,13 @@ class RuleEditor(tk.Frame):
             new_name = f"{base_name} (Copy{suffix_text})"
             suffix += 1
 
-        # Update the rule_name field (UI) and internal use
-        self.rule_name.set(new_name)
+        # Ensure it updates the UI and internal name tracking
+        if new_name != self.tab_name:
+            self.controller.view.rename_tab(self.tab_name, new_name)
+            self.tab_name = new_name
 
-        # Update tab label if the name changed (e.g. due to auto-renaming)
-        if new_name != old_tab_name:
-            self.controller.view.rename_tab(old_tab_name, new_name)
-            self.tab_name = new_name  # update internal reference
-
+        self.rule_name.set(new_name)  # ✅ UI field last
+        
         rule_data = {
             "pattern": self.folder_path.get().strip(),
             "include_subs": self.include_subs.get(),
