@@ -78,7 +78,7 @@
         "rule_type": "DynamicRule"
     },
     {
-        "name": "Complex Rule Test 2",
+        "name": "Complex Rule Test (Copy 2)",
         "config": {
             "pattern": "C:/Users/joaocatalao/Desktop",
             "include_subs": false,
