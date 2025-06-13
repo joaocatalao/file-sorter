@@ -1,0 +1,22 @@
+# Ignore Python cache
+__pycache__/
+**/__pycache__/
+
+# Ignore local rule and settings data
+file_sorter/data/*
+!file_sorter/data/.gitkeep
+
+# Ignore local virtual environments (if created)
+.venv/
+env/
+venv/
+
+# Ignore OS/system-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore logs
+*.log
+
+# Bytecode files
+*.pyc
