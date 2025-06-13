@@ -1,7 +1,12 @@
+from model.rule_base import BaseRule
+from model.rule_group import RuleGroup
+
 import os
 import json
 import importlib
-from model.rule_base import BaseRule
+import shutil
+
+RULES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "rules.json")
 
 class RuleManager:
     def __init__(self, plugin_dir=None, data_file=None):
@@ -28,19 +33,55 @@ class RuleManager:
                         self.available_rule_classes[obj.__name__] = obj
 
     def load_rules(self):
-        if not os.path.exists(self.data_file):
-            return []
-        with open(self.data_file, 'r', encoding='utf-8') as f:
-            rule_dicts = json.load(f)
-        self.rules.clear()
-        for r in rule_dicts:
-            rule_type = r.get("rule_type")
-            rule_cls = self.available_rule_classes.get(rule_type)
-            if rule_cls:
-                rule = rule_cls.from_dict(r)
-                self.rules.append(rule)
-        return self.rules
+        if not os.path.exists(RULES_PATH) or os.path.getsize(RULES_PATH) == 0:
+            self.rules = []
+            return
+
+        try:
+            with open(RULES_PATH, "r") as f:
+                rule_dicts = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Failed to load rules.json: {e}")
+            self.rules = []
+            return
+
+        self.rules = []
+        for rd in rule_dicts:
+            rule_type = rd.get("type")
+
+            if rule_type == "group":
+                try:
+                    self.rules.append(RuleGroup.from_dict(rd))
+                except Exception as e:
+                    print(f"⚠️ Failed to load group: {rd.get('name', '?')} ({e})")
+            else:
+                rule_type = rd.get("rule_type")
+                if rule_type and rule_type in self.available_rule_classes:
+                    rule_cls = self.available_rule_classes[rule_type]
+                    rule = rule_cls(rd["name"], rd)
+                    self.rules.append(rule)
+                else:
+                    print(f"⚠️ Unknown rule type: {rule_type}")
 
     def save_rules(self):
-        with open(self.data_file, 'w', encoding='utf-8') as f:
-            json.dump([r.to_dict() for r in self.rules], f, indent=4)
+        if os.path.exists(RULES_PATH):
+            shutil.copy(RULES_PATH, RULES_PATH + ".bak")
+
+        def safe_to_dict(r):
+            try:
+                return r.to_dict()
+            except Exception as e:
+                print(f"⚠️ Could not serialize rule: {getattr(r, 'name', '?')} ({e})")
+                return None
+
+        safe_list = [safe_to_dict(r) for r in self.rules]
+        valid_rules = [r for r in safe_list if r is not None]
+
+        with open(RULES_PATH, "w") as f:
+            json.dump(valid_rules, f, indent=4)
+
+    def create_group(self, name):
+        group = RuleGroup(name)
+        self.rules.append(group)
+        self.save_rules()
+        return group

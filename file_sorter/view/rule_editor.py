@@ -13,10 +13,14 @@ class RuleEditor(tk.Frame):
         self.rule_index = rule_index
         self.action_rows = []
 
+        self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
+        self.folder_path = tk.StringVar(value=self.rule.config.get("pattern", "") if self.rule else "")
+        self.include_subs = tk.BooleanVar(value=self.rule.config.get("include_subs", False) if self.rule else False)
+
         self.build_ui()
 
         self.is_dirty = False
-        self.tab_name = rule.name if rule else None  # track for dirty mark
+        self.tab_name = rule.name if rule else None
 
         self.rule_name.trace_add("write", lambda *_: self.mark_dirty())
         self.folder_path.trace_add("write", lambda *_: self.mark_dirty())
@@ -58,10 +62,6 @@ class RuleEditor(tk.Frame):
         # --- Everything below goes inside scrollable_frame ---
         header = tk.Frame(self.scrollable_frame, bg="#f0f0f0", height=50)
         header.pack(fill='x')
-
-        self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
-        self.folder_path = tk.StringVar(value=self.rule.config.get("pattern", "") if self.rule else "")
-        self.include_subs = tk.BooleanVar(value=self.rule.config.get("include_subs", False) if self.rule else False)
 
         ttk.Label(header, text="Rule Name:").pack(side="left", padx=5)
         ttk.Entry(header, textvariable=self.rule_name).pack(side="left", padx=5)

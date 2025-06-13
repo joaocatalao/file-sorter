@@ -33,79 +33,109 @@ class RulesTab(tk.Frame):
             return
 
         for index, rule in enumerate(rules):
-            container = ttk.Frame(self.list_frame)
-            container.pack(fill="x", pady=6, padx=5, anchor="w")
+            if getattr(rule, "is_group", False):
+                self.render_group(rule)
+            else:
+                self.render_rule(rule, index)
 
-            is_expanded = tk.BooleanVar(value=False)
+    def render_group(self, group):
+        frame = ttk.LabelFrame(self.list_frame, text=f"📁 {group.name}", padding=10)
+        frame.pack(fill="x", pady=8)
 
-            # Title row
-            title_frame = ttk.Frame(container)
-            title_frame.pack(fill="x")
+        ttk.Label(frame, text="(No rules in this group yet)", foreground="#888888").pack(anchor="w", padx=10)
 
-            toggle_btn = ttk.Label(title_frame, text="▶", width=2)
-            toggle_btn.pack(side="left")
+    def render_rule(self, rule, index):
+        container = ttk.Frame(self.list_frame)
+        container.pack(fill="x", pady=6, padx=5, anchor="w")
 
-            name_label = ttk.Label(title_frame, text=f"📄 {rule.name}", font=("Segoe UI", 10))
-            name_label.pack(side="left", anchor="w")
+        is_expanded = tk.BooleanVar(value=False)
 
-            # Buttons
-            btns = ttk.Frame(title_frame)
-            btns.pack(side="right")
-            ttk.Button(btns, text="✏️", width=3, command=lambda r=rule, i=index: self.controller.open_rule_editor(rule=r, index=i)).pack(side="right", padx=2)
-            ttk.Button(btns, text="🗑", width=3, command=lambda r=rule: self.delete_rule(r)).pack(side="right", padx=2)
+        title_frame = ttk.Frame(container)
+        title_frame.pack(fill="x")
 
-            # Details (must come first before lambda binds)
-            details_frame = ttk.Frame(container)
+        toggle_btn = ttk.Label(title_frame, text="▶", width=2)
+        toggle_btn.pack(side="left")
 
-            folder = rule.config.get("pattern") or rule.config.get("destination") or "(no folder)"
-            ttk.Label(details_frame, text=f"📁 Folder: {folder}", font=("Segoe UI", 9)).pack(anchor="w")
+        name_label = ttk.Label(title_frame, text=f"📄 {rule.name}", font=("Segoe UI", 10))
+        name_label.pack(side="left", anchor="w")
 
-            cond_block = rule.config.get("conditions", {})
-            logic = cond_block.get("logic", "All")
-            children = cond_block.get("children", [])
-            cond_descs = []
+        btns = ttk.Frame(title_frame)
+        btns.pack(side="right")
+        ttk.Button(btns, text="✏️", width=3, command=lambda r=rule, i=index: self.controller.open_rule_editor(rule=r, index=i)).pack(side="right", padx=2)
+        ttk.Button(btns, text="🗑", width=3, command=lambda r=rule: self.delete_rule(r)).pack(side="right", padx=2)
 
-            for cond in children:
-                if isinstance(cond, dict) and "type" in cond:
-                    cond_descs.append(f"{cond['type']} {cond['comparison']} \"{cond['value']}\"")
-                elif isinstance(cond, dict) and "logic" in cond:
-                    cond_descs.append(f"[{cond['logic']} group]")
+        details_frame = ttk.Frame(container)
 
-            cond_summary = ", ".join(cond_descs) if cond_descs else "(none)"
-            ttk.Label(details_frame, text=f"📌 Conditions: {logic} | {cond_summary}", font=("Segoe UI", 9)).pack(anchor="w")
+        folder = rule.config.get("pattern") or rule.config.get("destination") or "(no folder)"
+        ttk.Label(details_frame, text=f"📁 Folder: {folder}", font=("Segoe UI", 9)).pack(anchor="w")
 
-            actions = rule.config.get("actions", [])
-            action_descs = []
-            for a in actions:
-                action = a.get("action", "?")
-                path = a.get("path", "")
-                action_descs.append(f"{action} → {path}")
-            action_summary = ", ".join(action_descs) if action_descs else "(none)"
-            ttk.Label(details_frame, text=f"⚙️ Actions: {action_summary}", font=("Segoe UI", 9)).pack(anchor="w")
+        cond_block = rule.config.get("conditions", {})
+        logic = cond_block.get("logic", "All")
+        children = cond_block.get("children", [])
+        cond_descs = []
 
-            # Toggle function — now after details_frame exists
-            def toggle(frame, flag, btn):
-                flag.set(not flag.get())
-                if flag.get():
-                    btn.config(text="▼")
-                    frame.pack(fill="x", padx=20)
-                else:
-                    btn.config(text="▶")
-                    frame.forget()
+        for cond in children:
+            if isinstance(cond, dict) and "type" in cond:
+                cond_descs.append(f"{cond['type']} {cond['comparison']} \"{cond['value']}\"")
+            elif isinstance(cond, dict) and "logic" in cond:
+                cond_descs.append(f"[{cond['logic']} group]")
 
-            toggle_btn.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
-            name_label.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
+        cond_summary = ", ".join(cond_descs) if cond_descs else "(none)"
+        ttk.Label(details_frame, text=f"📌 Conditions: {logic} | {cond_summary}", font=("Segoe UI", 9)).pack(anchor="w")
+
+        actions = rule.config.get("actions", [])
+        action_descs = []
+        for a in actions:
+            action = a.get("action", "?")
+            path = a.get("path", "")
+            action_descs.append(f"{action} → {path}")
+        action_summary = ", ".join(action_descs) if action_descs else "(none)"
+        ttk.Label(details_frame, text=f"⚙️ Actions: {action_summary}", font=("Segoe UI", 9)).pack(anchor="w")
+
+        def toggle(frame, flag, btn):
+            flag.set(not flag.get())
+            if flag.get():
+                btn.config(text="▼")
+                frame.pack(fill="x", padx=20)
+            else:
+                btn.config(text="▶")
+                frame.forget()
+
+        toggle_btn.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
+        name_label.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
 
     def add_rule(self):
         self.controller.open_rule_editor()
 
     def add_group(self):
-        print("Add Rule Group clicked")
+        def on_submit():
+            name = name_var.get().strip()
+            if name:
+                self.controller.rule_manager.create_group(name)
+                self.controller.view.show_rules(self.controller.rule_manager.rules)
+                popup.destroy()
 
-    def delete_rule(self, rule):
-        from tkinter import messagebox
-        confirm = messagebox.askyesno("Delete Rule", f"Delete rule '{rule.name}'?")
-        if confirm:
-            self.controller.rule_manager.rules.remove(rule)
-            self.controller.rule_manager.save_rules()
-            self.controller.view.show_rules(self.controller.rule_manager.rules)
+        popup = tk.Toplevel(self)
+        popup.title("New Rule Group")
+        popup.geometry("300x180")
+        popup.resizable(False, False)
+        popup.grab_set()
+
+        tk.Label(popup, text="Group name:", font=("Segoe UI", 10)).pack(pady=(15, 5))
+        name_var = tk.StringVar(value=f"Group #{len(self.controller.rule_manager.rules) + 1}")
+        name_entry = ttk.Entry(popup, textvariable=name_var, width=30)
+        name_entry.pack()
+
+        # Future options (disabled for now)
+        options_frame = ttk.LabelFrame(popup, text="Group Options (coming soon)", padding=10)
+        options_frame.pack(fill="x", padx=10, pady=10)
+
+        tk.Checkbutton(options_frame, text="Enable/Disable group", state="disabled").pack(anchor="w")
+
+        btns = ttk.Frame(popup)
+        btns.pack(pady=10)
+
+        ttk.Button(btns, text="Create", command=on_submit).pack(side="left", padx=5)
+        ttk.Button(btns, text="Cancel", command=popup.destroy).pack(side="left", padx=5)
+
+        name_entry.focus_set()

@@ -11,3 +11,8 @@ class MoveByExtensionRule(BaseRule):
         if dest_dir and os.path.exists(file_path):
             dest_path = os.path.join(dest_dir, os.path.basename(file_path))
             shutil.move(file_path, dest_path)
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["name"], data["config"])
+

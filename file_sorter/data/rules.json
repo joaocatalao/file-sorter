@@ -1,6 +1,6 @@
 [
     {
-        "name": "Complex Rule Test",
+        "name": "Simple Rule Test",
         "config": {
             "pattern": "C:/Users/Joao/Desktop",
             "include_subs": false,
@@ -11,36 +11,6 @@
                         "type": "Extension",
                         "comparison": "Is",
                         "value": "pdf"
-                    },
-                    {
-                        "logic": "All",
-                        "children": [
-                            {
-                                "type": "File name",
-                                "comparison": "Contains",
-                                "value": "test"
-                            },
-                            {
-                                "type": "File name",
-                                "comparison": "Contains",
-                                "value": "test"
-                            }
-                        ]
-                    },
-                    {
-                        "logic": "All",
-                        "children": [
-                            {
-                                "type": "File name",
-                                "comparison": "Contains",
-                                "value": "test"
-                            },
-                            {
-                                "type": "File name",
-                                "comparison": "Contains",
-                                "value": "test"
-                            }
-                        ]
                     }
                 ]
             },
@@ -54,17 +24,62 @@
         "rule_type": "MoveByExtensionRule"
     },
     {
-        "name": "Simple Rule Test",
+        "name": "Complex Rule Test",
         "config": {
             "pattern": "C:/Users/Joao/Desktop",
             "include_subs": false,
             "conditions": {
-                "logic": "All",
+                "logic": "Any",
                 "children": [
                     {
                         "type": "Extension",
                         "comparison": "Is",
                         "value": "pdf"
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
+                    },
+                    {
+                        "logic": "All",
+                        "children": [
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            },
+                            {
+                                "type": "File name",
+                                "comparison": "Contains",
+                                "value": "test"
+                            }
+                        ]
                     }
                 ]
             },

@@ -1,0 +1,26 @@
+[
+    {
+        "name": "Simple Rule Test",
+        "config": {
+            "pattern": "C:/Users/Joao/Desktop",
+            "include_subs": false,
+            "conditions": {
+                "logic": "All",
+                "children": [
+                    {
+                        "type": "Extension",
+                        "comparison": "Is",
+                        "value": "pdf"
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "action": "Move",
+                    "path": "C:/Users/Joao/Desktop"
+                }
+            ]
+        },
+        "rule_type": "MoveByExtensionRule"
+    }
+]
