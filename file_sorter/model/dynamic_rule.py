@@ -12,6 +12,11 @@ class DynamicRule(BaseRule):
 
         conditions = self.config.get("conditions", {})
         logic = conditions.get("logic", "All").lower()
+
+        if logic == "all_files":
+            print("[🔄 All Files Mode] Matching all files without conditions.")
+            return True
+
         children = conditions.get("children", [])
 
         if not children:
@@ -77,7 +82,13 @@ class DynamicRule(BaseRule):
             print(f"[🧪 Condition] {cond_type} {op} '{value}' → {result} ({reason})")
             results.append(result)
 
-        final_result = any(results) if logic == "any" else all(results)
+        if logic == "any":
+            final_result = any(results)
+        elif logic == "none":
+            final_result = not any(results)
+        else:  # default to "all"
+            final_result = all(results)
+
         print(f"[✅ MATCH RESULT] → {final_result}")
         return final_result
 

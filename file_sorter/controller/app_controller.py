@@ -100,13 +100,18 @@ class AppController:
         print(f"[📂 Preview] Walking folder: {folder}")
         print(f"[👓 Rule Type] {type(rule).__name__}")
 
+        include_subs = rule.config.get("include_subs", False)
+
         matches = []
 
         if not os.path.isdir(folder):
             print(f"[❌] Folder does not exist → {folder}")
             return []
 
-        for root, _, files in os.walk(folder):
+        for root, dirs, files in os.walk(folder):
+            if not include_subs:
+                dirs[:] = []  # prevent os.walk from descending into subfolders
+
             for fname in files:
                 path = os.path.join(root, fname)
                 print(f"[🧾] Checking file: {path}")
