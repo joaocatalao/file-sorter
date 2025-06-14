@@ -1,7 +1,11 @@
-import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from view.widgets.condition_group import ConditionGroup
 from view.widgets.action_row import ActionRow
+
+import tkinter as tk
+from tkinter import messagebox
+import sys
+import os
 
 class RuleEditor(tk.Frame):
     def __init__(self, parent, controller, rule=None, rule_index=None):
@@ -83,7 +87,8 @@ class RuleEditor(tk.Frame):
 
         ttk.Label(header, text="Rule Name:").pack(side="left", padx=5)
         ttk.Entry(header, textvariable=self.rule_name).pack(side="left", fill="x", expand=True, padx=5)
-        ttk.Button(header, text="💾 Save", command=self.save_rule).pack(side="right", padx=10)
+        ttk.Button(header, text="👁 Preview", command=self.preview_rule).pack(side="right", padx=5)
+        ttk.Button(header, text="💾 Save", command=self.save_rule).pack(side="right", padx=5)
 
         content = tk.Frame(self.scrollable_frame, bg="#f9f9f9")
         content.pack(fill="both", expand=True, padx=20, pady=20)
@@ -210,3 +215,65 @@ class RuleEditor(tk.Frame):
 
         messagebox.showinfo("Saved", f"Rule '{rule.name}' saved successfully.")
         
+    def preview_rule(self):
+        folder = self.folder_path.get().strip()
+        if not folder:
+            messagebox.showerror("Missing Folder", "Please choose a folder to preview.")
+            return
+        
+        print(f"[📂 Preview Triggered] For folder: {folder}")
+
+        # Always preview with current editor state, not saved rule
+        rule_obj = self.controller.rule_manager.available_rule_classes["DynamicRule"](
+            self.rule_name.get(),
+            {
+                "pattern": self.folder_path.get().strip(),
+                "include_subs": self.include_subs.get(),
+                "conditions": self.condition_group.get_data(),
+                "actions": [row.get_data() for row in self.action_rows],
+            },
+        )
+
+        matches = self.controller.preview_rule(rule_obj, folder)
+
+        popup = tk.Toplevel(self)
+        popup.title("Preview Rule Matches")
+        popup.resizable(False, False)
+        popup.geometry("600x400")
+
+        # Set app icon
+        try:
+            if sys.platform == "win32":
+                icon_path = os.path.join(os.path.dirname(__file__), "../assets/favicon.ico")
+                icon_path = os.path.abspath(icon_path)
+                popup.iconbitmap(icon_path)
+        except Exception as e:
+            print(f"[⚠️ Icon] Failed to load icon: {e}")
+
+        # Center the popup
+        popup.update_idletasks()
+        w = 600
+        h = 400
+        x = (popup.winfo_screenwidth() // 2) - (w // 2)
+        y = (popup.winfo_screenheight() // 2) - (h // 2)
+        popup.geometry(f"{w}x{h}+{x}+{y}")
+        popup.transient(self.winfo_toplevel())
+        popup.grab_set()
+
+        ttk.Label(popup, text=f"{len(matches)} file(s) matched:", font=("Segoe UI", 10, "bold")).pack(pady=10)
+
+        frame = ttk.Frame(popup)
+        frame.pack(fill="both", expand=True, padx=10)
+
+        scrollbar = ttk.Scrollbar(frame)
+        scrollbar.pack(side="right", fill="y")
+
+        listbox = tk.Listbox(frame, yscrollcommand=scrollbar.set, font=("Segoe UI", 9))
+        listbox.pack(side="left", fill="both", expand=True)
+
+        scrollbar.config(command=listbox.yview)
+
+        for path in matches:
+            listbox.insert("end", path)
+
+        ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)

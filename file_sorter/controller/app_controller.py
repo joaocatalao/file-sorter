@@ -7,6 +7,7 @@ from config.settings import load_settings, save_settings
 import tkinter as tk
 import random
 import copy
+import os
 
 class AppController:
     def __init__(self, root):
@@ -92,3 +93,32 @@ class AppController:
 
         self.view.open_rule_tab(internal_tab_id, build_editor, display_name=new_name)
 
+    def preview_rule(self, rule, folder):
+
+        # Normalize first!
+        folder = os.path.abspath(folder)
+        print(f"[📂 Preview] Walking folder: {folder}")
+        print(f"[👓 Rule Type] {type(rule).__name__}")
+
+        matches = []
+
+        if not os.path.isdir(folder):
+            print(f"[❌] Folder does not exist → {folder}")
+            return []
+
+        for root, _, files in os.walk(folder):
+            for fname in files:
+                path = os.path.join(root, fname)
+                print(f"[🧾] Checking file: {path}")
+                try:
+                    if rule.match(path):
+                        print(f"[✅ MATCHED] → {path}")
+                        matches.append(path)
+                    else:
+                        print(f"[❌ NO MATCH] → {path}")
+                except Exception as e:
+                    print(f"[⚠️ ERROR] while checking {path}: {e}")
+
+        print(f"[🎯 Preview Result] {len(matches)} match(es)")
+        return matches
+        
