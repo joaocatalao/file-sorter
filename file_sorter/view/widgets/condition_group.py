@@ -7,9 +7,11 @@ class ConditionGroup:
         self.frame = tk.Frame(master, bg="#eaeaea", padx=8, pady=6, bd=1, relief="groove")
         self.frame.pack(fill="x", pady=5)
 
-        self.logic_cb = ttk.Combobox(self.frame, values=["All", "Any", "None"], state="readonly", width=15)
+        self.logic_cb = ttk.Combobox(self.frame, values=["All Files", "All", "Any"], state="readonly", width=15)
         self.logic_cb.set("All")
         self.logic_cb.pack(anchor="w", padx=5, pady=5)
+
+        self.logic_cb.bind("<<ComboboxSelected>>", self.update_button_state)
 
         self.children = []
         self.controller = controller
@@ -19,6 +21,20 @@ class ConditionGroup:
 
         ttk.Button(self.button_frame, text="➕ Condition", command=self.add_condition).pack(side="left", padx=2)
         ttk.Button(self.button_frame, text="➕ Group", command=self.add_group).pack(side="left", padx=2)
+
+        self.update_button_state()
+
+    def update_button_state(self, *_):
+        current_logic = self.logic_cb.get()
+        if current_logic == "All Files":
+            for widget in self.button_frame.winfo_children():
+                widget.configure(state="disabled")
+            self.clear_conditions()
+            if hasattr(self.controller, "current_rule") and hasattr(self.controller.current_rule, "set_all_files_mode"):
+                self.controller.current_rule.set_all_files_mode()
+        else:
+            for widget in self.button_frame.winfo_children():
+                widget.configure(state="normal")
 
     def add_condition(self, preset=None):
         row = ConditionRow(self.frame, controller=self.controller, preset=preset, on_delete=lambda: self.remove_child(row))
@@ -36,14 +52,27 @@ class ConditionGroup:
 
     def get_data(self):
         return {
-            "logic": self.logic_cb.get(),
+            "logic": self.logic_cb.get().strip().lower().replace(" ", "_"),
             "children": [child.get_data() for child in self.children]
         }
 
     def load_data(self, data):
-        self.logic_cb.set(data.get("logic", "All"))
+        logic_map = {
+            "all": "All",
+            "any": "Any",
+            "none": "None",
+            "all_files": "All Files"
+        }
+        self.logic_cb.set(logic_map.get(data.get("logic", "").lower(), "All"))
+        self.logic_cb.event_generate("<<ComboboxSelected>>")
+
         for child in data.get("children", []):
             if "children" in child:
                 self.add_group(preset=child)
             else:
                 self.add_condition(preset=child)
+
+    def clear_conditions(self):
+        for child in self.children:
+            child.frame.destroy()
+        self.children.clear()
