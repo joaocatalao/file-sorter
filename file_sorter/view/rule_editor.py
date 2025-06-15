@@ -19,6 +19,9 @@ class RuleEditor(tk.Frame):
 
         self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
         self.tab_name = self.rule_name.get()  # ✅ Use the current input name as tab_name
+        self.monitor_mode = tk.StringVar(value=self.rule.config.get("monitor_mode", "watchdog") if self.rule else "watchdog")
+        self.poll_interval = tk.StringVar(value=self.rule.config.get("poll_interval", "10") if self.rule else "10")
+        self.poll_unit = tk.StringVar(value=self.rule.config.get("poll_unit", "Minutes") if self.rule else "Minutes")
 
         def on_rule_name_change(*_):
             new_name = self.rule_name.get().strip()
@@ -53,6 +56,12 @@ class RuleEditor(tk.Frame):
             self.is_dirty = True
             if self.tab_name:
                 self.controller.view.mark_tab_dirty(self.tab_name)
+
+    def toggle_monitor_options(self):
+        if self.monitor_options.winfo_ismapped():
+            self.monitor_options.pack_forget()
+        else:
+            self.monitor_options.pack(fill="x", padx=5, pady=(0, 10))
 
     def build_ui(self):
         print("[RuleEditor] build_ui() called")
@@ -95,9 +104,26 @@ class RuleEditor(tk.Frame):
 
         folder_frame = ttk.LabelFrame(content, text="Monitor Folder")
         folder_frame.pack(fill="x", pady=10)
-        ttk.Entry(folder_frame, textvariable=self.folder_path).pack(side="left", fill="x", expand=True, padx=5)
-        ttk.Button(folder_frame, text="...", command=self.browse_folder).pack(side="left", padx=5)
-        ttk.Checkbutton(folder_frame, text="Include subfolders", variable=self.include_subs).pack(side="left", padx=10)
+
+        top_row = ttk.Frame(folder_frame)
+        top_row.pack(fill="x", padx=5, pady=(3, 2))
+
+        ttk.Entry(top_row, textvariable=self.folder_path).pack(side="left", fill="x", expand=True)
+        ttk.Button(top_row, text="...", command=self.browse_folder).pack(side="left", padx=5)
+        ttk.Button(top_row, text="⚙️", width=3, command=self.toggle_monitor_options).pack(side="left", padx=(0, 5))
+        ttk.Checkbutton(top_row, text="Include subfolders", variable=self.include_subs).pack(side="left", padx=5)
+
+        self.monitor_options = ttk.Frame(folder_frame)
+        self.monitor_options.pack(fill="x", padx=5, pady=(2, 5))
+        self.monitor_options.pack_forget()
+
+        ttk.Radiobutton(self.monitor_options, text="React on file changes", variable=self.monitor_mode, value="watchdog").pack(anchor="w", pady=(0, 2))
+        poll_row = ttk.Frame(self.monitor_options)
+        poll_row.pack(anchor="w")
+
+        ttk.Radiobutton(poll_row, text="Check every", variable=self.monitor_mode, value="poll").pack(side="left")
+        ttk.Entry(poll_row, textvariable=self.poll_interval, width=5).pack(side="left", padx=(5, 2))
+        ttk.Combobox(poll_row, textvariable=self.poll_unit, values=["Seconds", "Minutes", "Hours"], width=8, state="readonly").pack(side="left")
 
         self.cond_frame = ttk.LabelFrame(content, text="If")
         self.cond_frame.pack(fill="x", pady=10)
@@ -196,7 +222,11 @@ class RuleEditor(tk.Frame):
             "pattern": self.folder_path.get().strip(),
             "include_subs": self.include_subs.get(),
             "conditions": conditions_data,
-            "actions": actions_data
+            "actions": actions_data,
+            "monitor_mode": self.monitor_mode.get(),
+            "poll_interval": self.poll_interval.get(),
+            "poll_unit": self.poll_unit.get(),
+
         }
 
         rule = self.controller.create_or_update_rule(
