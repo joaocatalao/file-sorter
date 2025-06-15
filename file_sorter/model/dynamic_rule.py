@@ -6,6 +6,13 @@ class DynamicRule(BaseRule):
     def __init__(self, name, config):
         super().__init__(name, config)
 
+    def set_all_files_mode(self):
+        """Clear all conditions and set the rule to match all files."""
+        self.config["conditions"] = {
+            "logic": "all_files",
+            "children": []
+        }
+
     def match(self, file_path):
         """Evaluate if the file matches all configured conditions."""
         print(f"[🔍 MATCH] Checking file: {file_path}")

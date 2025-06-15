@@ -101,6 +101,7 @@ class RuleEditor(tk.Frame):
 
         self.cond_frame = ttk.LabelFrame(content, text="If")
         self.cond_frame.pack(fill="x", pady=10)
+
         self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
         if self.rule and "conditions" in self.rule.config:
             self.condition_group.load_data(self.rule.config["conditions"])
