@@ -352,10 +352,26 @@ class RuleEditor(tk.Frame):
             },
         )
 
-        matched = []
+        matched = set()
 
-        for folder in folders:
-            root = folder["path"]
+        # Normalize and filter duplicates from nested paths
+        normalized = []
+        for f in folders:
+            f_path = os.path.abspath(f["path"])
+            f["abs_path"] = f_path
+            normalized.append(f)
+
+        # Skip subfolders already covered by a parent with include_subs=True
+        def is_covered(f, others):
+            return any(
+                o["include_subs"] and f["abs_path"].startswith(o["abs_path"] + os.sep)
+                for o in others if o != f
+            )
+
+        filtered_folders = [f for f in normalized if not is_covered(f, normalized)]
+
+        for folder in filtered_folders:
+            root = folder["abs_path"]
             include_subs = folder.get("include_subs", False)
 
             if include_subs:
@@ -363,13 +379,13 @@ class RuleEditor(tk.Frame):
                     for f in filenames:
                         path = os.path.join(dirpath, f)
                         if rule_obj.match(path):
-                            matched.append(path)
+                            matched.add(path)
             else:
                 try:
                     for f in os.listdir(root):
                         path = os.path.join(root, f)
                         if os.path.isfile(path) and rule_obj.match(path):
-                            matched.append(path)
+                            matched.add(path)
                 except Exception as e:
                     print(f"[⚠️ Preview Error] Failed to list {root}: {e}")
 
@@ -398,7 +414,7 @@ class RuleEditor(tk.Frame):
         listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=listbox.yview)
 
-        for path in matched:
+        for path in sorted(matched):
             listbox.insert("end", path)
 
         ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)
