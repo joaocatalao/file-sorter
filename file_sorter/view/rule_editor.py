@@ -110,7 +110,10 @@ class RuleEditor(tk.Frame):
             for folder in self.rule.config["folders"]:
                 self.add_folder_row(
                     preset_path=folder.get("path", ""),
-                    preset_include=folder.get("include_subs", False)
+                    preset_include=folder.get("include_subs", False),
+                    preset_mode=folder.get("monitor_mode", "watchdog"),
+                    preset_interval=folder.get("poll_interval", "10"),
+                    preset_unit=folder.get("poll_unit", "Minutes")
                 )
         else:
             self.add_folder_row()
@@ -166,12 +169,13 @@ class RuleEditor(tk.Frame):
             path_var.set(path)
             self.mark_dirty()
 
-    def add_folder_row(self, preset_path="", preset_include=False):
+    def add_folder_row(self, preset_path="", preset_include=False, preset_mode="watchdog", preset_interval="10", preset_unit="Minutes"):
         path_var = tk.StringVar(value=preset_path)
         subs_var = tk.BooleanVar(value=preset_include)
-        mode_var = tk.StringVar(value="watchdog")
-        poll_interval = tk.StringVar(value="10")
-        poll_unit = tk.StringVar(value="Minutes")
+
+        mode_var = tk.StringVar(value=preset_mode)
+        poll_interval = tk.StringVar(value=preset_interval)
+        poll_unit = tk.StringVar(value=preset_unit)
 
         # Container frame for full folder block
         outer = ttk.Frame(self.folder_container)
@@ -271,8 +275,12 @@ class RuleEditor(tk.Frame):
                         "path": row["path"].get().strip(),
                         "include_subs": row["subs"].get(),
                         "monitor_mode": row["mode"].get(),
-                        "poll_interval": row["interval"].get(),
-                        "poll_unit": row["unit"].get(),
+                        **(
+                            {
+                                "poll_interval": row["interval"].get(),
+                                "poll_unit": row["unit"].get()
+                            } if row["mode"].get() == "poll" else {}
+                        )
                     } for row in self.folder_rows
                 ],
 
@@ -302,8 +310,12 @@ class RuleEditor(tk.Frame):
                     "path": row["path"].get().strip(),
                     "include_subs": row["subs"].get(),
                     "monitor_mode": row["mode"].get(),
-                    "poll_interval": row["interval"].get(),
-                    "poll_unit": row["unit"].get(),
+                    **(
+                        {
+                            "poll_interval": row["interval"].get(),
+                            "poll_unit": row["unit"].get()
+                        } if row["mode"].get() == "poll" else {}
+                    )
                 } for row in self.folder_rows
             ],
 
@@ -448,18 +460,47 @@ class RuleEditor(tk.Frame):
         listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=listbox.yview)
 
-        def render_node(node, prefix=""):
+        expanded_state = {}  # full path -> bool
+        index_map = {}
+
+        def render_node(node, prefix="", full_path=""):
             for key, child in sorted(node.items()):
                 if key == "_files":
                     for f in sorted(child):
                         listbox.insert("end", f"{prefix}  - {f}")
                 else:
-                    listbox.insert("end", f"{prefix}📁 {key}")
-                    render_node(child, prefix + "    ")
+                    path = f"{full_path}/{key}" if full_path else key
+                    is_open = expanded_state.get(path, False)
+                    icon = "▼" if is_open else "▶"
+                    idx = listbox.size()
+                    listbox.insert("end", f"{prefix}{icon} 📁 {key}")
+                    index_map[idx] = ("folder", path, child, prefix + "    ")
+                    if is_open:
+                        render_node(child, prefix + "    ", path)
 
+        def on_click(event):
+            widget = event.widget
+            idx = widget.nearest(event.y)
+            if idx in index_map:
+                kind, path, node, prefix = index_map[idx]
+                if kind == "folder":
+                    # Toggle open/close
+                    expanded_state[path] = not expanded_state.get(path, False)
+                    # Re-render the full list
+                    listbox.delete(0, "end")
+                    index_map.clear()
+                    for root in grouped_tree:
+                        listbox.insert("end", f"📁 {root}")
+                        render_node(grouped_tree[root], prefix="    ", full_path=root)
+                        listbox.insert("end", "")
+
+        # Insert folder groups
         for root in grouped_tree:
             listbox.insert("end", f"📁 {root}")
-            render_node(grouped_tree[root], prefix="    ")
-            listbox.insert("end", "")
+            render_node(grouped_tree[root], prefix="    ", full_path=root)
+            listbox.insert("end", "")  # spacer
+
+        # Bind folder toggle
+        listbox.bind("<Button-1>", on_click)
 
         ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)
