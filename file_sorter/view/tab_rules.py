@@ -4,6 +4,9 @@ from view.widgets.toolbar import Toolbar
 import tkinter as tk
 from tkinter import ttk
 import copy
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RulesTab(tk.Frame):
     def __init__(self, parent, controller):
@@ -15,21 +18,21 @@ class RulesTab(tk.Frame):
         self.build_rules_list()
 
     def build_header(self):
-            def add_btn(text, cmd, tooltip):
-                return {"text": text, "command": cmd, "tooltip": tooltip}
+        def add_btn(text, cmd, tooltip):
+            return {"text": text, "command": cmd, "tooltip": tooltip}
 
-            toolbar = Toolbar(
-                self,
-                left_buttons=[
-                    add_btn("➕ Add Rule", self.add_rule, "Create a new rule"),
-                    add_btn("📁 Add Rule Group", self.add_group, "Create a new group")
-                ]
-            )
-            toolbar.pack(fill="x")
+        toolbar = Toolbar(
+            self,
+            left_buttons=[
+                add_btn("➕ Add Rule", self.add_rule, "Create a new rule"),
+                add_btn("📁 Add Rule Group", self.add_group, "Create a new group")
+            ]
+        )
+        toolbar.pack(fill="x")
 
-            separator = tk.Frame(self, height=2, bg="#a0a0a0")
-            separator.pack(fill='x')
-            
+        separator = tk.Frame(self, height=2, bg="#a0a0a0")
+        separator.pack(fill='x')
+        
     def build_rules_list(self):
         self.list_frame = tk.Frame(self, bg="#f8f8f8")
         self.list_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -37,6 +40,8 @@ class RulesTab(tk.Frame):
     def display_rules(self, rules):
         for widget in self.list_frame.winfo_children():
             widget.destroy()
+
+        logger.info(f"[RulesTab] Displaying {len(rules)} rule(s)")
 
         if not rules:
             ttk.Label(self.list_frame, text="No rules yet.", background="#f8f8f8").pack(anchor="w", padx=10, pady=10)
@@ -120,11 +125,13 @@ class RulesTab(tk.Frame):
             else:
                 btn.config(text="▶")
                 frame.forget()
+            logger.debug(f"[RulesTab] Toggled rule: {rule.name} → {'Expanded' if flag.get() else 'Collapsed'}")
 
         toggle_btn.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
         name_label.bind("<Button-1>", lambda e, df=details_frame, exp=is_expanded, tb=toggle_btn: toggle(df, exp, tb))
 
     def add_rule(self):
+        logger.info("[RulesTab] Add Rule clicked")
         self.controller.open_rule_editor()
     
     def delete_rule(self, rule):
@@ -134,6 +141,7 @@ class RulesTab(tk.Frame):
                 self.controller.rule_manager.rules.remove(rule)
                 self.controller.rule_manager.save_rules()
                 self.controller.view.show_rules(self.controller.rule_manager.rules)
+                logger.info(f"[RulesTab] Rule deleted: {rule.name}")
 
     def add_group(self):
         def on_submit():
@@ -141,6 +149,7 @@ class RulesTab(tk.Frame):
             if name:
                 self.controller.rule_manager.create_group(name)
                 self.controller.view.show_rules(self.controller.rule_manager.rules)
+                logger.info(f"[RulesTab] New group created: {name}")
                 popup.destroy()
 
         popup = tk.Toplevel(self)
@@ -154,10 +163,8 @@ class RulesTab(tk.Frame):
         name_entry = ttk.Entry(popup, textvariable=name_var, width=30)
         name_entry.pack()
 
-        # Future options (disabled for now)
         options_frame = ttk.LabelFrame(popup, text="Group Options (coming soon)", padding=10)
         options_frame.pack(fill="x", padx=10, pady=10)
-
         tk.Checkbutton(options_frame, text="Enable/Disable group", state="disabled").pack(anchor="w")
 
         btns = ttk.Frame(popup)
