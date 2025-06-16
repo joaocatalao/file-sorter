@@ -6,19 +6,20 @@ from view.widgets.toolbar import Toolbar
 import tkinter as tk
 from tkinter import messagebox
 from collections import defaultdict
-import sys
 import os
-import glob
+import logging
 
 class RuleEditor(tk.Frame):
     def __init__(self, parent, controller, rule=None, rule_index=None):
-        print("[RuleEditor] __init__ called")
 
         super().__init__(parent, bg="#f9f9f9")
         self.controller = controller
         self.rule = rule
         self.rule_index = rule_index
         self.action_rows = []
+
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[RuleEditor] Initialized with rule: {self.rule.name if self.rule else 'New'}")
 
         self.rule_status = tk.StringVar(value="Stopped")
         self.is_running = False
@@ -66,7 +67,6 @@ class RuleEditor(tk.Frame):
             self.monitor_options.pack(fill="x", padx=5, pady=(0, 10))
 
     def build_ui(self):
-        print("[RuleEditor] build_ui() called")
 
         # --- Canvas + Scrollable Frame Wrapper ---
         canvas = tk.Canvas(self, bg="#f9f9f9", borderwidth=0, highlightthickness=0)
@@ -190,7 +190,8 @@ class RuleEditor(tk.Frame):
         else:
             self.add_action_row()
 
-        print("[RuleEditor] UI built successfully")
+        logger = logging.getLogger(__name__)
+        logger.debug("[RuleEditor] UI built successfully")
 
     def remove_folder_row(self, row_frame):
         for row in self.folder_rows:
@@ -382,7 +383,7 @@ class RuleEditor(tk.Frame):
         messagebox.showinfo("Saved", f"Rule '{rule.name}' saved successfully.")
         
     def preview_rule(self):
-
+        logger = logging.getLogger(__name__)
         folders = [
             {
                 "path": row["path"].get().strip(),
@@ -395,7 +396,7 @@ class RuleEditor(tk.Frame):
             messagebox.showerror("Missing Folder", "Please choose at least one folder.")
             return
 
-        print(f"[📂 Preview Triggered] For {len(folders)} folder(s)")
+        logger.info(f"[Preview] Triggered for rule '{self.rule_name.get()}' on {len(folders)} folder(s)")
 
         rule_obj = self.controller.rule_manager.available_rule_classes["DynamicRule"](
             self.rule_name.get(),
@@ -458,7 +459,7 @@ class RuleEditor(tk.Frame):
                             node.setdefault("_files", []).append(parts[-1])
 
                 except Exception as e:
-                    print(f"[⚠️ Preview Error] Failed to list {root}: {e}")
+                    logger.error(f"[Preview] Failed to list {root}: {e}")
 
         # UI display (no changes here)
         popup = tk.Toplevel(self)
