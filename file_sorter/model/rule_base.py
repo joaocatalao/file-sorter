@@ -1,27 +1,18 @@
 from abc import ABC, abstractmethod
+import logging
+from model.serializable import SerializableMixin
 
-class BaseRule(ABC):
+logger = logging.getLogger(__name__)
+
+class BaseRule(ABC, SerializableMixin):
     def __init__(self, name, config):
         self.name = name
-        self.config = config  # Dict: pattern, destination, etc.
+        self.config = config
 
     @abstractmethod
     def match(self, file_path):
-        """Return True if the file matches the rule's condition."""
         pass
 
     @abstractmethod
     def action(self, file_path):
-        """Perform the rule's action on the file."""
         pass
-
-    def to_dict(self):
-        return {
-            "name": self.name,
-            "config": self.config,
-            "rule_type": self.__class__.__name__,
-        }
-
-    @classmethod
-    def from_dict(cls, data):
-        return cls(data["name"], data["config"])
