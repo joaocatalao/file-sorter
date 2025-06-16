@@ -4,8 +4,10 @@ from view.widgets.action_row import ActionRow
 
 import tkinter as tk
 from tkinter import messagebox
+from collections import defaultdict
 import sys
 import os
+import glob
 
 class RuleEditor(tk.Frame):
     def __init__(self, parent, controller, rule=None, rule_index=None):
@@ -22,7 +24,7 @@ class RuleEditor(tk.Frame):
         self.monitor_mode = tk.StringVar(value=self.rule.config.get("monitor_mode", "watchdog") if self.rule else "watchdog")
         self.poll_interval = tk.StringVar(value=self.rule.config.get("poll_interval", "10") if self.rule else "10")
         self.poll_unit = tk.StringVar(value=self.rule.config.get("poll_unit", "Minutes") if self.rule else "Minutes")
-
+        
         def on_rule_name_change(*_):
             new_name = self.rule_name.get().strip()
 
@@ -39,13 +41,9 @@ class RuleEditor(tk.Frame):
 
         self.rule_name.trace_add("write", on_rule_name_change)
 
-        self.folder_path = tk.StringVar(value=self.rule.config.get("pattern", "") if self.rule else "")
-        self.include_subs = tk.BooleanVar(value=self.rule.config.get("include_subs", False) if self.rule else False)
+        self.folder_rows = []  # holds dicts: {path_var, subs_var, frame}
 
         self.is_dirty = False  # ✅ Set early
-
-        self.folder_path.trace_add("write", lambda *_: self.mark_dirty())
-        self.include_subs.trace_add("write", lambda *_: self.mark_dirty())
 
         self.build_ui()  # ✅ After trace bindings
 
@@ -102,16 +100,25 @@ class RuleEditor(tk.Frame):
         content = tk.Frame(self.scrollable_frame, bg="#f9f9f9")
         content.pack(fill="both", expand=True, padx=20, pady=20)
 
-        folder_frame = ttk.LabelFrame(content, text="Monitor Folder")
+        folder_frame = ttk.LabelFrame(content, text="Monitor Folders")
         folder_frame.pack(fill="x", pady=10)
 
-        top_row = ttk.Frame(folder_frame)
-        top_row.pack(fill="x", padx=5, pady=(3, 2))
+        self.folder_container = ttk.Frame(folder_frame)
+        self.folder_container.pack(fill="x")
 
-        ttk.Entry(top_row, textvariable=self.folder_path).pack(side="left", fill="x", expand=True)
-        ttk.Button(top_row, text="...", command=self.browse_folder).pack(side="left", padx=5)
-        ttk.Button(top_row, text="⚙️", width=3, command=self.toggle_monitor_options).pack(side="left", padx=(0, 5))
-        ttk.Checkbutton(top_row, text="Include subfolders", variable=self.include_subs).pack(side="left", padx=5)
+        if self.rule and "folders" in self.rule.config:
+            for folder in self.rule.config["folders"]:
+                self.add_folder_row(
+                    preset_path=folder.get("path", ""),
+                    preset_include=folder.get("include_subs", False),
+                    preset_mode=folder.get("monitor_mode", "watchdog"),
+                    preset_interval=folder.get("poll_interval", "10"),
+                    preset_unit=folder.get("poll_unit", "Minutes")
+                )
+        else:
+            self.add_folder_row()
+
+        ttk.Button(folder_frame, text="➕ Add Folder", command=self.add_folder_row).pack(anchor="w", padx=5, pady=5)
 
         self.monitor_options = ttk.Frame(folder_frame)
         self.monitor_options.pack(fill="x", padx=5, pady=(2, 5))
@@ -147,6 +154,73 @@ class RuleEditor(tk.Frame):
             self.add_action_row()
 
         print("[RuleEditor] UI built successfully")
+
+    def remove_folder_row(self, row_frame):
+        for row in self.folder_rows:
+            if row["frame"] == row_frame:
+                row_frame.destroy()
+                self.folder_rows.remove(row)
+                break
+        self.mark_dirty()
+
+    def browse_folder_dialog(self, path_var):
+        path = filedialog.askdirectory()
+        if path:
+            path_var.set(path)
+            self.mark_dirty()
+
+    def add_folder_row(self, preset_path="", preset_include=False, preset_mode="watchdog", preset_interval="10", preset_unit="Minutes"):
+        path_var = tk.StringVar(value=preset_path)
+        subs_var = tk.BooleanVar(value=preset_include)
+
+        mode_var = tk.StringVar(value=preset_mode)
+        poll_interval = tk.StringVar(value=preset_interval)
+        poll_unit = tk.StringVar(value=preset_unit)
+
+        # Container frame for full folder block
+        outer = ttk.Frame(self.folder_container)
+        outer.pack(fill="x", padx=5, pady=3)
+
+        # Row with entry + buttons
+        top = ttk.Frame(outer)
+        top.pack(fill="x")
+
+        ttk.Entry(top, textvariable=path_var).pack(side="left", fill="x", expand=True)
+        ttk.Button(top, text="...", command=lambda: self.browse_folder_dialog(path_var)).pack(side="left", padx=5)
+
+        # Monitor options toggle (this row only)
+        def toggle():
+            if monitor_frame.winfo_ismapped():
+                monitor_frame.pack_forget()
+            else:
+                monitor_frame.pack(fill="x", padx=5, pady=(2, 5))
+
+        ttk.Button(top, text="⚙️", width=3, command=toggle).pack(side="left", padx=(0, 2))
+        ttk.Button(top, text="❌", width=3, command=lambda: self.remove_folder_row(outer)).pack(side="left", padx=(0, 2))
+
+        # Include subfolders checkbox
+        ttk.Checkbutton(outer, text="Include subfolders", variable=subs_var).pack(anchor="w", pady=(2, 0))
+
+        # Folder-specific monitor settings frame (with visual border)
+        monitor_frame = ttk.LabelFrame(outer, text="Monitor Options")
+        monitor_frame.pack_forget()
+
+        ttk.Radiobutton(monitor_frame, text="React on file changes", variable=mode_var, value="watchdog").pack(anchor="w", pady=(0, 2))
+        poll_row = ttk.Frame(monitor_frame)
+        poll_row.pack(anchor="w")
+
+        ttk.Radiobutton(poll_row, text="Check every", variable=mode_var, value="poll").pack(side="left")
+        ttk.Entry(poll_row, textvariable=poll_interval, width=5).pack(side="left", padx=(5, 2))
+        ttk.Combobox(poll_row, textvariable=poll_unit, values=["Seconds", "Minutes", "Hours"], width=8, state="readonly").pack(side="left")
+
+        self.folder_rows.append({
+            "frame": outer,
+            "path": path_var,
+            "subs": subs_var,
+            "mode": mode_var,
+            "interval": poll_interval,
+            "unit": poll_unit,
+        })
 
     def browse_folder(self):
         path = filedialog.askdirectory()
@@ -196,8 +270,20 @@ class RuleEditor(tk.Frame):
         # Check if any *other* rule already has this name and config
         is_duplicate = any(
             rules_match(r, new_name, {
-                "pattern": self.folder_path.get().strip(),
-                "include_subs": self.include_subs.get(),
+                "folders": [
+                    {
+                        "path": row["path"].get().strip(),
+                        "include_subs": row["subs"].get(),
+                        "monitor_mode": row["mode"].get(),
+                        **(
+                            {
+                                "poll_interval": row["interval"].get(),
+                                "poll_unit": row["unit"].get()
+                            } if row["mode"].get() == "poll" else {}
+                        )
+                    } for row in self.folder_rows
+                ],
+
                 "conditions": self.condition_group.get_data(),
                 "actions": [row.get_data() for row in self.action_rows]
             })
@@ -219,8 +305,20 @@ class RuleEditor(tk.Frame):
         self.rule_name.set(new_name)  # ✅ UI field last
         
         rule_data = {
-            "pattern": self.folder_path.get().strip(),
-            "include_subs": self.include_subs.get(),
+            "folders": [
+                {
+                    "path": row["path"].get().strip(),
+                    "include_subs": row["subs"].get(),
+                    "monitor_mode": row["mode"].get(),
+                    **(
+                        {
+                            "poll_interval": row["interval"].get(),
+                            "poll_unit": row["unit"].get()
+                        } if row["mode"].get() == "poll" else {}
+                    )
+                } for row in self.folder_rows
+            ],
+
             "conditions": conditions_data,
             "actions": actions_data,
             "monitor_mode": self.monitor_mode.get(),
@@ -247,51 +345,110 @@ class RuleEditor(tk.Frame):
         messagebox.showinfo("Saved", f"Rule '{rule.name}' saved successfully.")
         
     def preview_rule(self):
-        folder = self.folder_path.get().strip()
-        if not folder:
-            messagebox.showerror("Missing Folder", "Please choose a folder to preview.")
-            return
-        
-        print(f"[📂 Preview Triggered] For folder: {folder}")
 
-        # Always preview with current editor state, not saved rule
+        folders = [
+            {
+                "path": row["path"].get().strip(),
+                "include_subs": row["subs"].get()
+            }
+            for row in self.folder_rows if row["path"].get().strip()
+        ]
+
+        if not folders:
+            messagebox.showerror("Missing Folder", "Please choose at least one folder.")
+            return
+
+        print(f"[📂 Preview Triggered] For {len(folders)} folder(s)")
+
         rule_obj = self.controller.rule_manager.available_rule_classes["DynamicRule"](
             self.rule_name.get(),
             {
-                "pattern": self.folder_path.get().strip(),
-                "include_subs": self.include_subs.get(),
+                "folders": folders,
                 "conditions": self.condition_group.get_data(),
                 "actions": [row.get_data() for row in self.action_rows],
             },
         )
 
-        matches = self.controller.preview_rule(rule_obj, folder)
+        def nested_dict():
+            return defaultdict(nested_dict)
 
+        grouped_tree = nested_dict()
+
+        # Normalize and filter duplicates from nested paths
+        normalized = []
+        for f in folders:
+            f_path = os.path.abspath(f["path"])
+            f["abs_path"] = f_path
+            normalized.append(f)
+
+        # Skip subfolders already covered by a parent with include_subs=True
+        def is_covered(f, others):
+            return any(
+                o["include_subs"] and f["abs_path"].startswith(o["abs_path"] + os.sep)
+                for o in others if o != f
+            )
+
+        filtered_folders = [f for f in normalized if not is_covered(f, normalized)]
+
+        for folder in filtered_folders:
+            root = folder["abs_path"]
+            include_subs = folder.get("include_subs", False)
+
+            if include_subs:
+                for dirpath, _, filenames in os.walk(root):
+                    for f in filenames:
+                        path = os.path.join(dirpath, f)
+                        if rule_obj.match(path):
+                            relative_path = os.path.relpath(path, root)
+                            # Group by declared root path (not dirpath), keeping relative subfolder structure
+                            parts = os.path.relpath(path, root).split(os.sep)
+                            node = grouped_tree[os.path.normpath(root)]
+                            for part in parts[:-1]:  # all folders
+                                node = node[part]
+                            node.setdefault("_files", []).append(parts[-1])
+
+            else:
+                try:
+                    for f in os.listdir(root):
+                        path = os.path.join(root, f)
+                        if os.path.isfile(path) and rule_obj.match(path):
+                            relative_path = os.path.relpath(path, root)
+                            # Group by declared root path (not dirpath), keeping relative subfolder structure
+                            parts = os.path.relpath(path, root).split(os.sep)
+                            node = grouped_tree[os.path.normpath(root)]
+                            for part in parts[:-1]:  # all folders
+                                node = node[part]
+                            node.setdefault("_files", []).append(parts[-1])
+
+                except Exception as e:
+                    print(f"[⚠️ Preview Error] Failed to list {root}: {e}")
+
+        # UI display (no changes here)
         popup = tk.Toplevel(self)
         popup.title("Preview Rule Matches")
         popup.resizable(False, False)
         popup.geometry("600x400")
 
-        # Set app icon
-        try:
-            if sys.platform == "win32":
-                icon_path = os.path.join(os.path.dirname(__file__), "../assets/favicon.ico")
-                icon_path = os.path.abspath(icon_path)
-                popup.iconbitmap(icon_path)
-        except Exception as e:
-            print(f"[⚠️ Icon] Failed to load icon: {e}")
-
-        # Center the popup
         popup.update_idletasks()
-        w = 600
-        h = 400
+        w, h = 600, 400
         x = (popup.winfo_screenwidth() // 2) - (w // 2)
         y = (popup.winfo_screenheight() // 2) - (h // 2)
         popup.geometry(f"{w}x{h}+{x}+{y}")
         popup.transient(self.winfo_toplevel())
         popup.grab_set()
 
-        ttk.Label(popup, text=f"{len(matches)} file(s) matched:", font=("Segoe UI", 10, "bold")).pack(pady=10)
+        def count_files(node):
+            count = 0
+            for key, value in node.items():
+                if key == "_files":
+                    count += len(value)
+                else:
+                    count += count_files(value)
+            return count
+
+        total_files = sum(count_files(tree) for tree in grouped_tree.values())
+
+        ttk.Label(popup, text=f"{total_files} file(s) matched:", font=("Segoe UI", 10, "bold")).pack(pady=10)
 
         frame = ttk.Frame(popup)
         frame.pack(fill="both", expand=True, padx=10)
@@ -301,10 +458,49 @@ class RuleEditor(tk.Frame):
 
         listbox = tk.Listbox(frame, yscrollcommand=scrollbar.set, font=("Segoe UI", 9))
         listbox.pack(side="left", fill="both", expand=True)
-
         scrollbar.config(command=listbox.yview)
 
-        for path in matches:
-            listbox.insert("end", path)
+        expanded_state = {}  # full path -> bool
+        index_map = {}
+
+        def render_node(node, prefix="", full_path=""):
+            for key, child in sorted(node.items()):
+                if key == "_files":
+                    for f in sorted(child):
+                        listbox.insert("end", f"{prefix}  - {f}")
+                else:
+                    path = f"{full_path}/{key}" if full_path else key
+                    is_open = expanded_state.get(path, False)
+                    icon = "▼" if is_open else "▶"
+                    idx = listbox.size()
+                    listbox.insert("end", f"{prefix}{icon} 📁 {key}")
+                    index_map[idx] = ("folder", path, child, prefix + "    ")
+                    if is_open:
+                        render_node(child, prefix + "    ", path)
+
+        def on_click(event):
+            widget = event.widget
+            idx = widget.nearest(event.y)
+            if idx in index_map:
+                kind, path, node, prefix = index_map[idx]
+                if kind == "folder":
+                    # Toggle open/close
+                    expanded_state[path] = not expanded_state.get(path, False)
+                    # Re-render the full list
+                    listbox.delete(0, "end")
+                    index_map.clear()
+                    for root in grouped_tree:
+                        listbox.insert("end", f"📁 {root}")
+                        render_node(grouped_tree[root], prefix="    ", full_path=root)
+                        listbox.insert("end", "")
+
+        # Insert folder groups
+        for root in grouped_tree:
+            listbox.insert("end", f"📁 {root}")
+            render_node(grouped_tree[root], prefix="    ", full_path=root)
+            listbox.insert("end", "")  # spacer
+
+        # Bind folder toggle
+        listbox.bind("<Button-1>", on_click)
 
         ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)
