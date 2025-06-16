@@ -29,14 +29,29 @@ class MainWindow:
         self.tab_bar = tk.Frame(self.top_bar, bg="#dcdcdc", height=30)
         self.tab_bar.pack(side="left", fill="x", expand=True, padx=6, pady=(4, 0))
 
-        self.settings_btn = ttk.Button(self.top_bar, text="⚙️", command=self.open_settings)
-        self.settings_btn.pack(side="right", padx=6, pady=6)
-
         self.content_frame = tk.Frame(self.root, bg="#ffffff", bd=1, relief="solid")
         self.content_frame.pack(fill="both", expand=True)
 
         self.add_tab("Rules", RulesTab)
         self.add_tab("Logs", LogsTab)
+        self.add_tab("Settings", SettingsTab)
+
+        # Bottom status bar
+        self.status_bar = ttk.Frame(self.root)
+        self.status_bar.pack(fill="x", side="bottom")
+
+        self.status_rules = ttk.Label(self.status_bar, text="0 of 0 rules enabled", anchor="w")
+        self.status_files = ttk.Label(self.status_bar, text="0 files processed", anchor="center")
+        self.status_bytes = ttk.Label(self.status_bar, text="0 bytes", anchor="e")
+
+        self.status_rules.pack(side="left", padx=10)
+        self.status_files.pack(side="left", padx=10)
+        self.status_bytes.pack(side="right", padx=10)
+    
+    def update_status_bar(self, rules_enabled=0, rules_total=0, files=0, bytes=0):
+        self.status_rules.config(text=f"{rules_enabled} of {rules_total} rules enabled")
+        self.status_files.config(text=f"{files} files processed")
+        self.status_bytes.config(text=f"{bytes} bytes")
 
     def add_tab(self, name, view_class):
         label = tk.Label(self.tab_bar, text=name, bg="#e0e0e0", padx=12, pady=4, bd=1, relief="raised")
@@ -78,17 +93,6 @@ class MainWindow:
             label = self.tabs[name]["label"]
             if label.cget("text").endswith("*"):
                 label.config(text=label.cget("text")[:-2])  # remove ' *'
-
-    def open_settings(self):
-        if "Settings" in self.tabs:
-            self.show_tab("Settings")
-            return
-
-        def build_settings(parent):
-            from view.tab_settings import SettingsTab
-            return SettingsTab(parent, controller=self.controller)
-
-        self.open_rule_tab("Settings", build_settings)
 
     def open_rule_tab(self, name, widget_factory, display_name=None):
         if name in self.tabs:
