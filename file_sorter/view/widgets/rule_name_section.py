@@ -12,7 +12,7 @@ class RuleNameSection(ttk.LabelFrame):
         self.on_rename = on_rename
         self.on_dirty = on_dirty
 
-        self.pack(fill="x", padx=20, pady=(10, 10))
+        self.pack(fill="x", pady=(3, 10))
 
         self.entry = ttk.Entry(self, textvariable=self.name_var)
         self.entry.pack(fill="x", padx=10, pady=10)
