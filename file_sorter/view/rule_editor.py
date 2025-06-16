@@ -1,6 +1,7 @@
 from tkinter import ttk, filedialog, messagebox
 from view.widgets.condition_group import ConditionGroup
 from view.widgets.action_row import ActionRow
+from view.widgets.toolbar import Toolbar
 
 import tkinter as tk
 from tkinter import messagebox
@@ -18,6 +19,9 @@ class RuleEditor(tk.Frame):
         self.rule = rule
         self.rule_index = rule_index
         self.action_rows = []
+
+        self.rule_status = tk.StringVar(value="Stopped")
+        self.is_running = False
 
         self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
         self.tab_name = self.rule_name.get()  # ✅ Use the current input name as tab_name
@@ -89,22 +93,53 @@ class RuleEditor(tk.Frame):
         self.scrollable_frame.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
 
         # --- Everything below goes inside scrollable_frame ---
-        header = tk.Frame(self.scrollable_frame, bg="#f0f0f0", height=50)
-        header.pack(fill='x')
+        # Create the status indicator widget
+        self.rule_status = tk.StringVar(value="Stopped")
+        self.is_running = False
 
-        ttk.Label(header, text="Rule Name:").pack(side="left", padx=5)
-        ttk.Entry(header, textvariable=self.rule_name).pack(side="left", fill="x", expand=True, padx=5)
-        ttk.Button(header, text="👁 Preview", command=self.preview_rule).pack(side="right", padx=5)
-        ttk.Button(header, text="💾 Save", command=self.save_rule).pack(side="right", padx=5)
+        status_frame = ttk.Frame()
+        self.indicator = tk.Canvas(status_frame, width=10, height=10, highlightthickness=0)
+        self.indicator.pack(side="left", padx=(0, 5))
+        self.indicator.create_oval(2, 2, 10, 10, fill="#ccc", outline="#888", tags="dot")
+        ttk.Label(status_frame, textvariable=self.rule_status, foreground="#555").pack(side="left")
 
+        def toggle_start():
+            self.is_running = not self.is_running
+            self.rule_status.set("Running" if self.is_running else "Stopped")
+            self.indicator.itemconfig("dot", fill="#4caf50" if self.is_running else "#ccc")
+            self.start_button.config(text="⏹ Stop" if self.is_running else "▶ Start")
+
+        toolbar = Toolbar(
+            self.scrollable_frame,
+            left_buttons=[
+                {"text": "▶ Start", "command": toggle_start, "tooltip": "Start or stop rule"},
+                {"custom": status_frame}
+            ],
+            right_buttons=[
+                {"text": "👁 Preview", "command": self.preview_rule, "tooltip": "Preview matching files"},
+                {"text": "💾 Save", "command": self.save_rule, "tooltip": "Save rule"}
+            ]
+        )
+        toolbar.pack(fill="x", pady=(0, 10))
+
+        # Keep reference to toggle button for later updates
+        self.start_button = toolbar.left_area.winfo_children()[0]
+
+        # Rule name section
+        name_frame = ttk.LabelFrame(self.scrollable_frame, text="Rule Name")
+        name_frame.pack(fill="x", padx=20, pady=(10, 10))  # Top margin from toolbar
+        ttk.Entry(name_frame, textvariable=self.rule_name).pack(fill="x", padx=10, pady=10)
+
+        # Main content wrapper
         content = tk.Frame(self.scrollable_frame, bg="#f9f9f9")
-        content.pack(fill="both", expand=True, padx=20, pady=20)
+        content.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
+        # Folder section
         folder_frame = ttk.LabelFrame(content, text="Monitor Folders")
-        folder_frame.pack(fill="x", pady=10)
+        folder_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
 
         self.folder_container = ttk.Frame(folder_frame)
-        self.folder_container.pack(fill="x")
+        self.folder_container.pack(fill="x", pady=(0, 10))
 
         if self.rule and "folders" in self.rule.config:
             for folder in self.rule.config["folders"]:
@@ -132,15 +167,17 @@ class RuleEditor(tk.Frame):
         ttk.Entry(poll_row, textvariable=self.poll_interval, width=5).pack(side="left", padx=(5, 2))
         ttk.Combobox(poll_row, textvariable=self.poll_unit, values=["Seconds", "Minutes", "Hours"], width=8, state="readonly").pack(side="left")
 
+        # Condition section
         self.cond_frame = ttk.LabelFrame(content, text="If")
-        self.cond_frame.pack(fill="x", pady=10)
+        self.cond_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
 
         self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
         if self.rule and "conditions" in self.rule.config:
             self.condition_group.load_data(self.rule.config["conditions"])
 
+        # Action section
         action_frame = ttk.LabelFrame(content, text="Then")
-        action_frame.pack(fill="x", pady=10)
+        action_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
 
         self.action_container = tk.Frame(action_frame, bg="#f9f9f9")
         self.action_container.pack(fill="x", padx=5, pady=5)

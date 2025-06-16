@@ -1,5 +1,6 @@
 from model.dynamic_rule import DynamicRule
-
+from utils.tooltip import Tooltip
+from view.widgets.toolbar import Toolbar
 import tkinter as tk
 from tkinter import ttk
 import copy
@@ -14,15 +15,21 @@ class RulesTab(tk.Frame):
         self.build_rules_list()
 
     def build_header(self):
-        header_frame = tk.Frame(self, bg="#f0f0f0", height=50)
-        header_frame.pack(fill='x')
+            def add_btn(text, cmd, tooltip):
+                return {"text": text, "command": cmd, "tooltip": tooltip}
 
-        ttk.Button(header_frame, text="Add Rule", command=self.add_rule).pack(side='left', padx=10, pady=10)
-        ttk.Button(header_frame, text="Add Rule Group", command=self.add_group).pack(side='left', padx=5, pady=10)
+            toolbar = Toolbar(
+                self,
+                left_buttons=[
+                    add_btn("➕ Add Rule", self.add_rule, "Create a new rule"),
+                    add_btn("📁 Add Rule Group", self.add_group, "Create a new group")
+                ]
+            )
+            toolbar.pack(fill="x")
 
-        separator = tk.Frame(self, height=2, bg="#a0a0a0")
-        separator.pack(fill='x')
-
+            separator = tk.Frame(self, height=2, bg="#a0a0a0")
+            separator.pack(fill='x')
+            
     def build_rules_list(self):
         self.list_frame = tk.Frame(self, bg="#f8f8f8")
         self.list_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -64,9 +71,19 @@ class RulesTab(tk.Frame):
 
         btns = ttk.Frame(title_frame)
         btns.pack(side="right")
-        ttk.Button(btns, text="✏️", width=3, command=lambda r=rule, i=index: self.controller.open_rule_editor(rule=r, index=i)).pack(side="right", padx=2)
-        ttk.Button(btns, text="🗑", width=3, command=lambda r=rule: self.delete_rule(r)).pack(side="right", padx=2)
-        ttk.Button(btns, text="📄", width=3, command=lambda r=rule: self.controller.duplicate_rule(r)).pack(side="right", padx=2)
+
+        btn_edit = ttk.Button(btns, text="🖊️", width=3, command=lambda r=rule, i=index: self.controller.open_rule_editor(rule=r, index=i))
+        btn_edit.pack(side="right", padx=2)
+        Tooltip(btn_edit, "Edit Rule")
+
+        btn_delete = ttk.Button(btns, text="🗑️", width=3, command=lambda r=rule: self.delete_rule(r))
+        btn_delete.pack(side="right", padx=2)
+        Tooltip(btn_delete, "Delete Rule")
+
+        btn_duplicate = ttk.Button(btns, text="📑", width=3, command=lambda r=rule: self.controller.duplicate_rule(r))
+        btn_duplicate.pack(side="right", padx=2)
+        Tooltip(btn_duplicate, "Duplicate Rule")
+        
         details_frame = ttk.Frame(container)
 
         folder = rule.config.get("pattern") or rule.config.get("destination") or "(no folder)"
