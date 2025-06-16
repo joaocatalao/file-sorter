@@ -1,5 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, filedialog
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ActionRow:
     def __init__(self, master, controller, preset=None, on_delete=None):
@@ -22,6 +25,9 @@ class ActionRow:
         if preset:
             self.action_cb.set(preset.get("action", "Move"))
             self.path_var.set(preset.get("path", ""))
+            logger.debug(f"[ActionRow] Initialized with preset: {preset}")
+        else:
+            logger.debug("[ActionRow] Initialized with default values")
 
         ttk.Button(self.frame, text="❌", command=self.delete).pack(side="right", padx=5)
 
@@ -29,14 +35,19 @@ class ActionRow:
         path = filedialog.askdirectory()
         if path:
             self.path_var.set(path)
+            logger.info(f"[ActionRow] Path selected: {path}")
 
     def get_data(self):
+        action = self.action_cb.get()
+        path = self.path_var.get()
+        logger.debug(f"[ActionRow] get_data() → action: {action}, path: {path}")
         return {
-            "action": self.action_cb.get(),
-            "path": self.path_var.get()
+            "action": action,
+            "path": path
         }
 
     def delete(self):
+        logger.info(f"[ActionRow] Deleted row: action={self.action_cb.get()}, path={self.path_var.get()}")
         self.frame.destroy()
         if self.on_delete:
             self.on_delete()
