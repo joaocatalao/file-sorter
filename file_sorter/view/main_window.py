@@ -178,18 +178,28 @@ class MainWindow:
             self.show_tab(fallback)
 
     def rename_tab(self, old_name, new_name):
-        if old_name in self.tabs:
-            tab = self.tabs.pop(old_name)
-            self.tabs[new_name] = tab
+        if old_name == new_name or new_name in self.tabs:
+            return  # Skip if name is unchanged or already exists
 
-            current_text = tab["label"].cget("text")
-            is_dirty = current_text.endswith("*")
-            tab["label"].config(text=new_name + (" *" if is_dirty else ""))
+        tab = self.tabs.pop(old_name, None)
+        if not tab:
+            logger.warning(f"[MainWindow] Tried to rename non-existent tab: {old_name}")
+            return
 
-            if "close" in tab:
-                tab["close"].bind("<Button-1>", lambda e, n=new_name: self.close_tab(n))
+        self.tabs[new_name] = tab
 
-            if self.current_tab == old_name:
-                self.current_tab = new_name
+        label = tab["label"]
+        current_text = label.cget("text").rstrip(" *")
+        is_dirty = label.cget("text").endswith("*")
 
-            logger.info(f"[MainWindow] Renamed tab: {old_name} → {new_name}")
+        if current_text == new_name:
+            return  # Visually identical, skip
+
+        label.config(text=new_name + (" *" if is_dirty else ""))
+        if "close" in tab:
+            tab["close"].bind("<Button-1>", lambda e, n=new_name: self.close_tab(n))
+
+        if self.current_tab == old_name:
+            self.current_tab = new_name
+
+        # logger.info(f"[MainWindow] Renamed tab: {old_name} → {new_name}")

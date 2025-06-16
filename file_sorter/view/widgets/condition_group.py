@@ -6,26 +6,43 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ConditionGroup:
-    def __init__(self, master, controller):
+    def __init__(self, master, controller, preset=None, on_delete=None):
+        self.controller = controller
+        self.on_delete = on_delete
+        self.children = []
+
         self.frame = tk.Frame(master, bg="#eaeaea", padx=8, pady=6, bd=1, relief="groove")
         self.frame.pack(fill="x", pady=5)
 
-        self.logic_cb = ttk.Combobox(self.frame, values=["All Files", "All", "Any"], state="readonly", width=15)
+        # Top controls (logic dropdown + delete button)
+        top = tk.Frame(self.frame, bg="#eaeaea")
+        top.pack(fill="x")
+
+        logic_controls = tk.Frame(top, bg="#eaeaea")
+        logic_controls.pack(side="left", padx=5, pady=5)
+
+        self.logic_cb = ttk.Combobox(logic_controls, values=["All Files", "All", "Any"], state="readonly", width=15)
         self.logic_cb.set("All")
-        self.logic_cb.pack(anchor="w", padx=5, pady=5)
+        self.logic_cb.bind("<<ComboboxSelected>>", self._on_logic_changed)
+        self.logic_cb.pack(side="left")
 
-        self.logic_cb.bind("<<ComboboxSelected>>", self.update_button_state)
+        if self.on_delete:
+            ttk.Button(logic_controls, text="❌", width=3, command=self.delete).pack(side="left", padx=(5, 0))
 
-        self.children = []
-        self.controller = controller
-
+        # Add buttons
         self.button_frame = tk.Frame(self.frame, bg="#eaeaea")
         self.button_frame.pack(anchor="w", padx=5, pady=5)
 
-        ttk.Button(self.button_frame, text="➕ Condition", command=self.add_condition).pack(side="left", padx=2)
-        ttk.Button(self.button_frame, text="➕ Group", command=self.add_group).pack(side="left", padx=2)
+        self.btn_add_condition = ttk.Button(self.button_frame, text="➕ Condition", command=self.add_condition)
+        self.btn_add_condition.pack(side="left", padx=2)
+
+        self.btn_add_group = ttk.Button(self.button_frame, text="➕ Group", command=self.add_group)
+        self.btn_add_group.pack(side="left", padx=2)
 
         self.update_button_state()
+
+        if preset:
+            self.load_data(preset)
         logger.debug("[ConditionGroup] Initialized")
 
     def update_button_state(self, *_):
@@ -40,23 +57,33 @@ class ConditionGroup:
         else:
             for widget in self.button_frame.winfo_children():
                 widget.configure(state="normal")
+    
+    def _on_logic_changed(self, event=None):
+        self.update_button_state()
+        if self.logic_cb.get() == "All Files":
+            self.clear_conditions()
 
     def add_condition(self, preset=None):
         row = ConditionRow(self.frame, controller=self.controller, preset=preset, on_delete=lambda: self.remove_child(row))
         self.children.append(row)
-        logger.debug(f"[ConditionGroup] Added condition row (preset: {bool(preset)})")
+        logger.info(f"[ConditionGroup] Condition added (preset: {bool(preset)})")
 
     def add_group(self, preset=None):
-        group = ConditionGroup(self.frame, controller=self.controller)
+        group = ConditionGroup(self.frame, controller=self.controller, preset=preset, on_delete=lambda: self.remove_child(group))
         self.children.append(group)
-        logger.debug("[ConditionGroup] Added nested condition group")
-        if preset:
-            group.load_data(preset)
+        logger.info("[ConditionGroup] Nested group added")
 
     def remove_child(self, child):
         if child in self.children:
             self.children.remove(child)
-            logger.debug("[ConditionGroup] Removed child condition/group")
+            child.frame.destroy()
+            logger.info("[ConditionGroup] Removed child condition/group")
+
+    def delete(self):
+        logger.info("[ConditionGroup] Deleted entire group")
+        self.frame.destroy()
+        if self.on_delete:
+            self.on_delete()
 
     def get_data(self):
         logic = self.logic_cb.get().strip().lower().replace(" ", "_")

@@ -2,6 +2,7 @@ from tkinter import ttk, filedialog, messagebox
 from view.widgets.condition_group import ConditionGroup
 from view.widgets.action_row import ActionRow
 from view.widgets.toolbar import Toolbar
+from view.widgets.rule_name_section import RuleNameSection
 
 import tkinter as tk
 from tkinter import messagebox
@@ -67,8 +68,40 @@ class RuleEditor(tk.Frame):
             self.monitor_options.pack(fill="x", padx=5, pady=(0, 10))
 
     def build_ui(self):
+        def toggle_start():
+            self.is_running = not self.is_running
+            self.rule_status.set("Running" if self.is_running else "Stopped")
+            self.indicator.itemconfig("dot", fill="#4caf50" if self.is_running else "#ccc")
+            self.start_button.config(text="⏹ Stop" if self.is_running else "▶ Start")
 
-        # --- Canvas + Scrollable Frame Wrapper ---
+        status_frame = ttk.Frame(self)
+
+        self.indicator = tk.Canvas(status_frame, width=10, height=10, highlightthickness=0)
+        self.indicator.pack(side="left", padx=(0, 5))
+
+        self.indicator.create_oval(2, 2, 10, 10, fill="#ccc", outline="#888", tags="dot")
+
+        status_label = ttk.Label(status_frame, textvariable=self.rule_status, foreground="#555")
+        status_label.pack(side="left")
+
+        # --- Toolbar (above scrollable area) ---
+        self.toolbar = Toolbar(
+            self,
+            left_buttons=[
+                {"text": "▶ Start", "command": toggle_start, "tooltip": "Start or stop rule"},
+                # No status_frame passed here
+            ],
+            right_buttons=[
+                {"text": "👁 Preview", "command": self.preview_rule, "tooltip": "Preview matching files"},
+                {"text": "💾 Save", "command": self.save_rule, "tooltip": "Save rule"}
+            ]
+        )
+        self.indicator = self.toolbar.add_status_indicator(self.rule_status, is_running=self.is_running)
+        self.toolbar.pack(fill="x", pady=(0, 10))
+
+        self.start_button = self.toolbar.left_area.winfo_children()[0]  # Keep ref
+
+        # --- Scrollable Content ---
         canvas = tk.Canvas(self, bg="#f9f9f9", borderwidth=0, highlightthickness=0)
         v_scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=v_scrollbar.set)
@@ -93,43 +126,14 @@ class RuleEditor(tk.Frame):
         self.scrollable_frame.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
 
         # --- Everything below goes inside scrollable_frame ---
-        # Create the status indicator widget
-        self.rule_status = tk.StringVar(value="Stopped")
-        self.is_running = False
-
-        status_frame = ttk.Frame()
-        self.indicator = tk.Canvas(status_frame, width=10, height=10, highlightthickness=0)
-        self.indicator.pack(side="left", padx=(0, 5))
-        self.indicator.create_oval(2, 2, 10, 10, fill="#ccc", outline="#888", tags="dot")
-        ttk.Label(status_frame, textvariable=self.rule_status, foreground="#555").pack(side="left")
-
-        def toggle_start():
-            self.is_running = not self.is_running
-            self.rule_status.set("Running" if self.is_running else "Stopped")
-            self.indicator.itemconfig("dot", fill="#4caf50" if self.is_running else "#ccc")
-            self.start_button.config(text="⏹ Stop" if self.is_running else "▶ Start")
-
-        toolbar = Toolbar(
-            self.scrollable_frame,
-            left_buttons=[
-                {"text": "▶ Start", "command": toggle_start, "tooltip": "Start or stop rule"},
-                {"custom": status_frame}
-            ],
-            right_buttons=[
-                {"text": "👁 Preview", "command": self.preview_rule, "tooltip": "Preview matching files"},
-                {"text": "💾 Save", "command": self.save_rule, "tooltip": "Save rule"}
-            ]
-        )
-        toolbar.pack(fill="x", pady=(0, 10))
-
-        # Keep reference to toggle button for later updates
-        self.start_button = toolbar.left_area.winfo_children()[0]
-
         # Rule name section
-        name_frame = ttk.LabelFrame(self.scrollable_frame, text="Rule Name")
-        name_frame.pack(fill="x", padx=20, pady=(10, 10))  # Top margin from toolbar
-        ttk.Entry(name_frame, textvariable=self.rule_name).pack(fill="x", padx=10, pady=10)
-
+        RuleNameSection(
+            self.scrollable_frame,
+            controller=self.controller,
+            name_var=self.rule_name,
+            on_rename=lambda old, new: self.controller.view.rename_tab(old, new),
+            on_dirty=self.mark_dirty
+        )
         # Main content wrapper
         content = tk.Frame(self.scrollable_frame, bg="#f9f9f9")
         content.pack(fill="both", expand=True, padx=20, pady=(0, 20))
@@ -542,3 +546,10 @@ class RuleEditor(tk.Frame):
         listbox.bind("<Button-1>", on_click)
 
         ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)
+
+    def destroy(self):
+        logger = logging.getLogger(__name__)
+        logger.debug("[RuleEditor] destroy() called — cleaning up toolbar")
+        if hasattr(self, "toolbar"):
+            self.toolbar.destroy()
+        super().destroy()

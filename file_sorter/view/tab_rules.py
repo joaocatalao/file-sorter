@@ -28,7 +28,7 @@ class RulesTab(tk.Frame):
                 add_btn("📁 Add Rule Group", self.add_group, "Create a new group")
             ]
         )
-        toolbar.pack(fill="x")
+        toolbar.pack(fill="x", pady=(0, 10))
 
         separator = tk.Frame(self, height=2, bg="#a0a0a0")
         separator.pack(fill='x')
