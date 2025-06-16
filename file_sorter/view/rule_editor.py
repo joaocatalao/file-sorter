@@ -4,6 +4,7 @@ from view.widgets.action_row import ActionRow
 
 import tkinter as tk
 from tkinter import messagebox
+from collections import defaultdict
 import sys
 import os
 import glob
@@ -105,10 +106,14 @@ class RuleEditor(tk.Frame):
         self.folder_container = ttk.Frame(folder_frame)
         self.folder_container.pack(fill="x")
 
-        self.add_folder_row(
-            preset_path=self.rule.config.get("pattern", "") if self.rule else "",
-            preset_include=self.rule.config.get("include_subs", False) if self.rule else False
-        )
+        if self.rule and "folders" in self.rule.config:
+            for folder in self.rule.config["folders"]:
+                self.add_folder_row(
+                    preset_path=folder.get("path", ""),
+                    preset_include=folder.get("include_subs", False)
+                )
+        else:
+            self.add_folder_row()
 
         ttk.Button(folder_frame, text="➕ Add Folder", command=self.add_folder_row).pack(anchor="w", padx=5, pady=5)
 
@@ -352,7 +357,10 @@ class RuleEditor(tk.Frame):
             },
         )
 
-        matched = set()
+        def nested_dict():
+            return defaultdict(nested_dict)
+
+        grouped_tree = nested_dict()
 
         # Normalize and filter duplicates from nested paths
         normalized = []
@@ -379,13 +387,27 @@ class RuleEditor(tk.Frame):
                     for f in filenames:
                         path = os.path.join(dirpath, f)
                         if rule_obj.match(path):
-                            matched.add(path)
+                            relative_path = os.path.relpath(path, root)
+                            # Group by declared root path (not dirpath), keeping relative subfolder structure
+                            parts = os.path.relpath(path, root).split(os.sep)
+                            node = grouped_tree[os.path.normpath(root)]
+                            for part in parts[:-1]:  # all folders
+                                node = node[part]
+                            node.setdefault("_files", []).append(parts[-1])
+
             else:
                 try:
                     for f in os.listdir(root):
                         path = os.path.join(root, f)
                         if os.path.isfile(path) and rule_obj.match(path):
-                            matched.add(path)
+                            relative_path = os.path.relpath(path, root)
+                            # Group by declared root path (not dirpath), keeping relative subfolder structure
+                            parts = os.path.relpath(path, root).split(os.sep)
+                            node = grouped_tree[os.path.normpath(root)]
+                            for part in parts[:-1]:  # all folders
+                                node = node[part]
+                            node.setdefault("_files", []).append(parts[-1])
+
                 except Exception as e:
                     print(f"[⚠️ Preview Error] Failed to list {root}: {e}")
 
@@ -403,7 +425,19 @@ class RuleEditor(tk.Frame):
         popup.transient(self.winfo_toplevel())
         popup.grab_set()
 
-        ttk.Label(popup, text=f"{len(matched)} file(s) matched:", font=("Segoe UI", 10, "bold")).pack(pady=10)
+        def count_files(node):
+            count = 0
+            for key, value in node.items():
+                if key == "_files":
+                    count += len(value)
+                else:
+                    count += count_files(value)
+            return count
+
+        total_files = sum(count_files(tree) for tree in grouped_tree.values())
+
+        ttk.Label(popup, text=f"{total_files} file(s) matched:", font=("Segoe UI", 10, "bold")).pack(pady=10)
+
         frame = ttk.Frame(popup)
         frame.pack(fill="both", expand=True, padx=10)
 
@@ -414,7 +448,18 @@ class RuleEditor(tk.Frame):
         listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=listbox.yview)
 
-        for path in sorted(matched):
-            listbox.insert("end", path)
+        def render_node(node, prefix=""):
+            for key, child in sorted(node.items()):
+                if key == "_files":
+                    for f in sorted(child):
+                        listbox.insert("end", f"{prefix}  - {f}")
+                else:
+                    listbox.insert("end", f"{prefix}📁 {key}")
+                    render_node(child, prefix + "    ")
+
+        for root in grouped_tree:
+            listbox.insert("end", f"📁 {root}")
+            render_node(grouped_tree[root], prefix="    ")
+            listbox.insert("end", "")
 
         ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)
