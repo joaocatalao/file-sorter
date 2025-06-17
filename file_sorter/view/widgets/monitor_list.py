@@ -9,6 +9,16 @@ class MonitorList(ttk.LabelFrame):
     def __init__(self, master, paths, on_dirty=None):
         super().__init__(master, text="Monitor Folders")
         self.paths = paths or []
+
+        # Normalize keys from saved rules (e.g., monitor_mode → mode)
+        for p in self.paths:
+            if "monitor_mode" in p:
+                p["mode"] = p.get("monitor_mode", "watchdog")
+            if "poll_interval" in p:
+                p["interval"] = p.get("poll_interval", "10")
+            if "poll_unit" in p:
+                p["unit"] = p.get("poll_unit", "minutes")
+                
         self.on_dirty = on_dirty
         self.rows = []
 
@@ -16,9 +26,9 @@ class MonitorList(ttk.LabelFrame):
             self.paths.append({
                 "path": "",
                 "include_subs": False,
-                "mode": "watchdog",
-                "interval": "10",
-                "unit": "minutes"
+                "monitor_mode": "watchdog",
+                "poll_interval": "10",
+                "poll_unit": "minutes"
             })
 
         self.pack(fill="x", pady=(3, 10))
@@ -40,9 +50,9 @@ class MonitorList(ttk.LabelFrame):
         new_path = {
             "path": "",
             "include_subs": False,
-            "mode": "watchdog",
-            "interval": "10",
-            "unit": "minutes"
+            "monitor_mode": "watchdog",
+            "poll_interval": "10",
+            "poll_unit": "minutes"
         }
         logger.info("[MonitorList] Added empty folder slot")
         self.paths.append(new_path)
