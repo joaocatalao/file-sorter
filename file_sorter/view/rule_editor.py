@@ -3,6 +3,7 @@ from view.widgets.action_row import ActionRow
 from view.widgets.toolbar import Toolbar
 from view.widgets.rule_name_section import RuleNameSection
 from view.widgets.monitor_list import MonitorList
+from view.widgets.condition_section import ConditionSection
 
 import tkinter as tk
 from tkinter import messagebox
@@ -131,19 +132,19 @@ class RuleEditor(tk.Frame):
         )
 
         # Folder section
-        MonitorList(
+        self.monitor_section = MonitorList(
             content,
-            paths=(self.rule.folder_paths if self.rule else []),
+            paths=self.rule.config.get("folders", []) if self.rule else [],
             on_dirty=self.mark_dirty
         )
 
         # Condition section
-        self.cond_frame = ttk.LabelFrame(content, text="If")
-        self.cond_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
-
-        self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
-        if self.rule and "conditions" in self.rule.config:
-            self.condition_group.load_data(self.rule.config["conditions"])
+        self.condition_section = ConditionSection(
+            content,
+            controller=self.controller,
+            rule=self.rule,
+            on_dirty=self.mark_dirty
+        )
 
         # Action section
         action_frame = ttk.LabelFrame(content, text="Then")
@@ -175,7 +176,7 @@ class RuleEditor(tk.Frame):
     def save_rule(self):
 
         actions_data = [row.get_data() for row in self.action_rows]
-        conditions_data = self.condition_group.get_data()
+        conditions_data = self.condition_section.get_data()
 
         new_name = self.rule_name.get().strip()
         if not new_name:
@@ -203,8 +204,8 @@ class RuleEditor(tk.Frame):
         # Check if any *other* rule already has this name and config
         is_duplicate = any(
             rules_match(r, new_name, {
-                "folders": self.rule.folder_paths,
-                "conditions": self.condition_group.get_data(),
+                "folders": self.monitor_section.get_config(),
+                "conditions": self.condition_section.get_data(),
                 "actions": [row.get_data() for row in self.action_rows]
             })
             for r in self.controller.rule_manager.rules
@@ -225,26 +226,9 @@ class RuleEditor(tk.Frame):
         self.rule_name.set(new_name)  # ✅ UI field last
         
         rule_data = {
-            "folders": [
-                {
-                    "path": row["path"].get().strip(),
-                    "include_subs": row["subs"].get(),
-                    "monitor_mode": row["mode"].get(),
-                    **(
-                        {
-                            "poll_interval": row["interval"].get(),
-                            "poll_unit": row["unit"].get()
-                        } if row["mode"].get() == "poll" else {}
-                    )
-                } for row in self.folder_rows
-            ],
-
-            "conditions": conditions_data,
-            "actions": actions_data,
-            "monitor_mode": self.monitor_mode.get(),
-            "poll_interval": self.poll_interval.get(),
-            "poll_unit": self.poll_unit.get(),
-
+            "folders": self.monitor_section.get_config(),
+            "conditions": self.condition_section.get_data(),
+            "actions": [row.get_data() for row in self.action_rows],
         }
 
         rule = self.controller.create_or_update_rule(
@@ -268,10 +252,10 @@ class RuleEditor(tk.Frame):
         logger = logging.getLogger(__name__)
         folders = [
             {
-                "path": row["path"].get().strip(),
-                "include_subs": row["subs"].get()
+                "path": row["path"].strip(),
+                "include_subs": row["include_subs"]
             }
-            for row in self.folder_rows if row["path"].get().strip()
+            for row in self.monitor_section.get_rows() if row["path"].strip()
         ]
 
         if not folders:
@@ -284,7 +268,7 @@ class RuleEditor(tk.Frame):
             self.rule_name.get(),
             {
                 "folders": folders,
-                "conditions": self.condition_group.get_data(),
+                "conditions": self.condition_section.get_data(),
                 "actions": [row.get_data() for row in self.action_rows],
             },
         )
