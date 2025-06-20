@@ -54,7 +54,9 @@ class AppController:
 
         def build_editor(parent):
             logger.debug("[AppController] Instantiating RuleEditor in container")
-            return RuleEditor(parent, controller=self, rule=rule, rule_index=index)
+            editor = RuleEditor(parent, controller=self, rule=rule, rule_index=index)
+            editor.tab_name = internal_id
+            return editor
 
         self.view.open_rule_tab(internal_id, build_editor, display_name=title)
 

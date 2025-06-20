@@ -1,9 +1,10 @@
-from view.widgets.condition_group import ConditionGroup
-from view.widgets.action_row import ActionRow
 from view.widgets.toolbar import Toolbar
 from view.widgets.rule_name_section import RuleNameSection
 from view.widgets.monitor_list import MonitorList
 from view.widgets.condition_section import ConditionSection
+from view.widgets.condition_group import ConditionGroup
+from view.widgets.action_section import ActionSection
+from view.widgets.action_row import ActionRow
 
 import tkinter as tk
 from tkinter import messagebox
@@ -28,7 +29,7 @@ class RuleEditor(tk.Frame):
         self.is_running = False
 
         self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
-        self.tab_name = self.rule_name.get()  # ✅ Use the current input name as tab_name
+        self.tab_name = getattr(self, "tab_name", self.rule_name.get())
     
         def on_rule_name_change(*_):
             new_name = self.rule_name.get().strip()
@@ -146,33 +147,17 @@ class RuleEditor(tk.Frame):
             on_dirty=self.mark_dirty
         )
 
+
         # Action section
-        action_frame = ttk.LabelFrame(content, text="Then")
-        action_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
-
-        self.action_container = tk.Frame(action_frame, bg="#f9f9f9")
-        self.action_container.pack(fill="x", padx=5, pady=5)
-
-        ttk.Button(action_frame, text="➕ Add Action", command=self.add_action_row).pack(anchor="w", padx=5, pady=(0, 5))
-
-        if self.rule and "actions" in self.rule.config:
-            for action_cfg in self.rule.config["actions"]:
-                self.add_action_row(preset=action_cfg)
-        else:
-            self.add_action_row()
-
-        logger = logging.getLogger(__name__)
-        logger.debug("[RuleEditor] UI built successfully")
-
-    def add_action_row(self, preset=None):
-        row = ActionRow(self.action_container, controller=self.controller, preset=preset, on_delete=lambda: self.remove_action_row(row))
-        self.action_rows.append(row)
-
-    def remove_action_row(self, row):
-        row.frame.destroy()
-        if row in self.action_rows:
-            self.action_rows.remove(row)
-
+        self.action_section = ActionSection(
+            content,
+            controller=self.controller,
+            rule=self.rule,
+            on_dirty=self.mark_dirty
+        )
+        self.action_section.pack(fill="x", pady=(0, 10))
+    
+    # FIX: Rule saving should be moved to rule_manager.py or similar
     def save_rule(self):
 
         actions_data = [row.get_data() for row in self.action_rows]
@@ -206,7 +191,7 @@ class RuleEditor(tk.Frame):
             rules_match(r, new_name, {
                 "folders": self.monitor_section.get_config(),
                 "conditions": self.condition_section.get_data(),
-                "actions": [row.get_data() for row in self.action_rows]
+                "actions": self.action_section.get_data()
             })
             for r in self.controller.rule_manager.rules
             if r is not self.rule
@@ -228,7 +213,7 @@ class RuleEditor(tk.Frame):
         rule_data = {
             "folders": self.monitor_section.get_config(),
             "conditions": self.condition_section.get_data(),
-            "actions": [row.get_data() for row in self.action_rows],
+            "actions": self.action_section.get_data()
         }
 
         rule = self.controller.create_or_update_rule(
@@ -269,7 +254,7 @@ class RuleEditor(tk.Frame):
             {
                 "folders": folders,
                 "conditions": self.condition_section.get_data(),
-                "actions": [row.get_data() for row in self.action_rows],
+                "actions": self.action_section.get_data()
             },
         )
 

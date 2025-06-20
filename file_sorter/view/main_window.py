@@ -91,16 +91,16 @@ class MainWindow:
     def mark_tab_dirty(self, name):
         if name in self.tabs:
             label = self.tabs[name]["label"]
-            if not label.cget("text").endswith("*"):
-                label.config(text=label.cget("text") + " *")
-                logger.debug(f"[MainWindow] Marked tab as dirty: {name}")
+            clean_text = label.cget("text").rstrip(" *")
+            label.config(text=clean_text + " *")
+            logger.debug(f"[MainWindow] Marked tab as dirty: {name}")
 
     def mark_tab_clean(self, name):
         if name in self.tabs:
             label = self.tabs[name]["label"]
-            if label.cget("text").endswith("*"):
-                label.config(text=label.cget("text")[:-2])
-                logger.debug(f"[MainWindow] Marked tab as clean: {name}")
+            clean_text = label.cget("text").rstrip(" *")
+            label.config(text=clean_text)
+            logger.debug(f"[MainWindow] Marked tab as clean: {name}")
 
     def open_rule_tab(self, name, widget_factory, display_name=None):
         if name in self.tabs:
