@@ -2,9 +2,19 @@ import logging
 import os
 import threading
 import time
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+import logging
 from typing import List, Dict, Union
+
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+except Exception:  # pragma: no cover - optional dependency
+    Observer = None  # type: ignore
+    class FileSystemEventHandler:  # type: ignore
+        pass
+    logging.getLogger(__name__).warning(
+        "watchdog package not available; falling back to polling only"
+    )
 
 from model.dynamic_rule import DynamicRule
 from core.action_executor import execute_actions
@@ -98,10 +108,14 @@ class RuleEngine:
             mode = folder.get("monitor_mode", "watchdog")
             include_subs = folder.get("include_subs", False)
 
-            if mode == "poll":
+            if mode == "poll" or Observer is None:
                 poller = _PollThread(rule, folder)
                 poller.start()
                 observers.append(poller)
+                if mode != "poll" and Observer is None:
+                    logger.warning(
+                        f"[Engine] watchdog unavailable; polling {path} instead"
+                    )
                 logger.info(
                     f"[Engine] Started polling {path} ({'recursive' if include_subs else 'non-recursive'})"
                 )

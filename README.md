@@ -32,7 +32,7 @@ file_sorter/
 1. Install Python 3 and ensure `pip` is available.
 2. Install dependencies:
    ```bash
-   pip install pystray pillow
+   pip install pystray pillow watchdog
    ```
 3. Run the application:
    ```bash
