@@ -73,7 +73,11 @@ class RuleManager:
                 rule_type = rd.get("rule_type")
                 if rule_type and rule_type in self.available_rule_classes:
                     rule_cls = self.available_rule_classes[rule_type]
-                    rule = rule_cls(rd["name"], rd.get("config", {}))
+                    rule = rule_cls(
+                        rd["name"],
+                        rd.get("config", {}),
+                        rd.get("enabled", True)
+                    )
                     self.rules.append(rule)
                     logger.info(f"[RuleLoader] Loaded rule: {rd['name']}")
                 else:

@@ -6,6 +6,8 @@ File Sorter is a desktop application written in Python with Tkinter. It allows y
 
 - **Rule based** file organizing with nested condition groups.
 - **Background rule engine** watches folders and runs actions in real time.
+- **Polling mode** available when filesystem events are unreliable.
+- **Logs tab** shows runtime messages.
 - **GUI editor** implemented with Tkinter for creating and editing rules.
 - **Plugin system** for custom rule types (place your Python files in `plugins/`).
 - **Settings** saved to `file_sorter/data/settings.json`.

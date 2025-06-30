@@ -8,8 +8,8 @@ from core.action_executor import execute_actions
 logger = logging.getLogger(__name__)
 
 class DynamicRule(BaseRule):
-    def __init__(self, name, config):
-        super().__init__(name, config)
+    def __init__(self, name, config, enabled=True):
+        super().__init__(name, config, enabled)
 
     def set_all_files_mode(self):
         """Clear all conditions and set the rule to match all files."""

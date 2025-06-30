@@ -182,6 +182,15 @@ class RuleEditor(tk.Frame):
         actions_data = [row.get_data() for row in self.action_rows]
         conditions_data = self.condition_section.get_data()
 
+        folders_config = self.monitor_section.get_config()
+        if not any(f.get("path") for f in folders_config):
+            messagebox.showerror("Error", "Please add at least one folder to monitor.")
+            return
+
+        if not actions_data:
+            messagebox.showerror("Error", "Add at least one action.")
+            return
+
         new_name = self.rule_name.get().strip()
         if not new_name:
             messagebox.showerror("Error", "Rule name is required.")
