@@ -4,10 +4,9 @@ from view.widgets.monitor_list import MonitorList
 from view.widgets.condition_section import ConditionSection
 from view.widgets.condition_group import ConditionGroup
 from view.widgets.action_section import ActionSection
-from view.widgets.action_row import ActionRow
+from model.dynamic_rule import DynamicRule
 
 import tkinter as tk
-from tkinter import messagebox
 from collections import defaultdict
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -51,6 +50,16 @@ class RuleEditor(tk.Frame):
 
         self.build_ui()  # ✅ After trace bindings
 
+    def _current_rule_object(self) -> DynamicRule:
+        """Return a DynamicRule built from the current form fields."""
+        config = {
+            "folders": self.monitor_section.get_config(),
+            "conditions": self.condition_section.get_data(),
+            "actions": self.action_section.get_data(),
+        }
+        name = self.rule_name.get().strip() or "Untitled"
+        return DynamicRule(name, config)
+
     def mark_dirty(self):
         if not self.tab_name:
             self.tab_name = self.rule_name.get()  # fallback for any future use
@@ -65,6 +74,16 @@ class RuleEditor(tk.Frame):
             self.rule_status.set("Running" if self.is_running else "Stopped")
             self.indicator.itemconfig("dot", fill="#4caf50" if self.is_running else "#ccc")
             self.start_button.config(text="⏹ Stop" if self.is_running else "▶ Start")
+
+            if self.is_running:
+                self.running_rule = self._current_rule_object()
+                self.controller.start_rule_runtime(self.running_rule)
+            else:
+                if hasattr(self, "running_rule"):
+                    self.controller.stop_rule_runtime(self.running_rule.name)
+                    del self.running_rule
+                else:
+                    self.controller.stop_rule_runtime(self.rule_name.get())
 
         status_frame = ttk.Frame(self)
 
@@ -163,6 +182,15 @@ class RuleEditor(tk.Frame):
         actions_data = [row.get_data() for row in self.action_rows]
         conditions_data = self.condition_section.get_data()
 
+        folders_config = self.monitor_section.get_config()
+        if not any(f.get("path") for f in folders_config):
+            messagebox.showerror("Error", "Please add at least one folder to monitor.")
+            return
+
+        if not actions_data:
+            messagebox.showerror("Error", "Add at least one action.")
+            return
+
         new_name = self.rule_name.get().strip()
         if not new_name:
             messagebox.showerror("Error", "Rule name is required.")
@@ -249,14 +277,8 @@ class RuleEditor(tk.Frame):
 
         logger.info(f"[Preview] Triggered for rule '{self.rule_name.get()}' on {len(folders)} folder(s)")
 
-        rule_obj = self.controller.rule_manager.available_rule_classes["DynamicRule"](
-            self.rule_name.get(),
-            {
-                "folders": folders,
-                "conditions": self.condition_section.get_data(),
-                "actions": self.action_section.get_data()
-            },
-        )
+        rule_obj = self._current_rule_object()
+        rule_obj.config["folders"] = folders
 
         def nested_dict():
             return defaultdict(nested_dict)
@@ -397,6 +419,8 @@ class RuleEditor(tk.Frame):
     def destroy(self):
         logger = logging.getLogger(__name__)
         logger.debug("[RuleEditor] destroy() called — cleaning up toolbar")
+        if hasattr(self, "running_rule"):
+            self.controller.stop_rule_runtime(self.running_rule.name)
         if hasattr(self, "toolbar"):
             self.toolbar.destroy()
         super().destroy()

@@ -13,3 +13,10 @@ class RuleGroup(SerializableMixin):
     def from_dict(cls, data):
         logger.debug(f"[RuleGroup] Deserializing group: {data.get('name')}")
         return cls(data["name"])
+
+    def to_dict(self):
+        return {
+            "type": "group",
+            "name": self.name,
+            "rules": [r.to_dict() for r in getattr(self, "rules", [])]
+        }

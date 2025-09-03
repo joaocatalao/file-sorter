@@ -6,6 +6,8 @@ import logging
 
 from model.rule_manager import RuleManager
 from model.dynamic_rule import DynamicRule
+from core.rule_engine import RuleEngine
+from utils.ui_log_handler import UILogHandler
 from view.main_window import MainWindow
 from view.rule_editor import RuleEditor
 from config.settings import load_settings, save_settings
@@ -16,6 +18,7 @@ logging.basicConfig(level=logging.INFO)
 class AppController:
     def __init__(self, root):
         self.root = root
+        self.engine = RuleEngine()
         self.rule_manager = RuleManager()
         self.rule_manager.load_plugins()
         self.rule_manager.load_rules()
@@ -24,6 +27,11 @@ class AppController:
         
         self.view = MainWindow(root, controller=self)
         self.view.show_rules(self.rule_manager.rules)
+
+        # Forward log messages to the Logs tab
+        handler = UILogHandler(lambda msg: self.view.tabs["Logs"]["frame"].log(msg))
+        handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+        logging.getLogger().addHandler(handler)
 
     def _generate_unique_rule_title(self):
         base = "New Rule"
@@ -130,3 +138,15 @@ class AppController:
 
         logger.info(f"[Preview] 🎯 Result: {len(matches)} match(es)")
         return matches
+
+    # --- Runtime rule management ---
+    def start_rule_runtime(self, rule: DynamicRule):
+        """Start watching folders for the given rule."""
+        self.engine.start_rule(rule)
+
+    def stop_rule_runtime(self, name: str):
+        """Stop any active watchers for the rule name."""
+        self.engine.stop_rule(name)
+
+    def stop_all(self):
+        self.engine.stop_all()

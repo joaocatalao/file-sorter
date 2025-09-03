@@ -9,6 +9,7 @@ class SerializableMixin:
             "name": getattr(self, "name", None),
             "config": getattr(self, "config", {}),
             "rule_type": self.__class__.__name__,
+            "enabled": getattr(self, "enabled", True),
         }
 
     @classmethod

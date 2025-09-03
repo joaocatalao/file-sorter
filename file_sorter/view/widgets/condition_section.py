@@ -14,9 +14,13 @@ class ConditionSection(ttk.LabelFrame):
         # Internal ConditionGroup widget
         self.condition_group = ConditionGroup(self, controller=self.controller)
 
-        # Preload conditions if editing an existing rule
         if rule and "conditions" in rule.config:
+            # Preload when editing existing rule
             self.condition_group.load_data(rule.config["conditions"])
+        else:
+            # New rule → default to "All Files"
+            self.condition_group.logic_cb.set("All Files")
+            self.condition_group.update_button_state()
 
     def get_data(self):
         return self.condition_group.get_data()
