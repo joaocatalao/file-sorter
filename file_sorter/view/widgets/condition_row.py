@@ -1,5 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ConditionRow:
     def __init__(self, master, controller, preset=None, on_delete=None):
@@ -23,17 +26,23 @@ class ConditionRow:
             self.type_cb.set(preset.get("type", "File name"))
             self.compare_cb.set(preset.get("comparison", "Contains"))
             self.value_entry.insert(0, preset.get("value", ""))
+            logger.debug(f"[ConditionRow] Initialized with preset: {preset}")
+        else:
+            logger.debug("[ConditionRow] Initialized with default values")
 
         ttk.Button(self.frame, text="❌", command=self.delete).pack(side="right", padx=5)
 
     def get_data(self):
-        return {
+        data = {
             "type": self.type_cb.get(),
             "comparison": self.compare_cb.get(),
             "value": self.value_entry.get()
         }
+        logger.debug(f"[ConditionRow] get_data() → {data}")
+        return data
 
     def delete(self):
+        logger.info(f"[ConditionRow] Deleted condition: {self.get_data()}")
         self.frame.destroy()
         if self.on_delete:
             self.on_delete()

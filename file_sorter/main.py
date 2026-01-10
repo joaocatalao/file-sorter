@@ -31,6 +31,7 @@ if __name__ == "__main__":
             root.withdraw()
             tray_manager.run()
         else:
+            controller.stop_all()
             root.destroy()
 
         save_settings(controller.settings)

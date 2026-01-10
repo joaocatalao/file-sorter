@@ -5,6 +5,9 @@ from view.tab_settings import SettingsTab
 import tkinter as tk
 from tkinter import ttk
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MainWindow:
     def __init__(self, root, controller):
@@ -36,7 +39,6 @@ class MainWindow:
         self.add_tab("Logs", LogsTab)
         self.add_tab("Settings", SettingsTab)
 
-        # Bottom status bar
         self.status_bar = ttk.Frame(self.root)
         self.status_bar.pack(fill="x", side="bottom")
 
@@ -47,7 +49,7 @@ class MainWindow:
         self.status_rules.pack(side="left", padx=10)
         self.status_files.pack(side="left", padx=10)
         self.status_bytes.pack(side="right", padx=10)
-    
+
     def update_status_bar(self, rules_enabled=0, rules_total=0, files=0, bytes=0):
         self.status_rules.config(text=f"{rules_enabled} of {rules_total} rules enabled")
         self.status_files.config(text=f"{files} files processed")
@@ -69,6 +71,8 @@ class MainWindow:
             "frame": frame
         }
 
+        logger.debug(f"[MainWindow] Added static tab: {name}")
+
     def show_tab(self, name):
         if self.current_tab and self.current_tab in self.tabs:
             self.tabs[self.current_tab]["label"].config(bg="#e0e0e0")
@@ -79,31 +83,34 @@ class MainWindow:
             self.tabs[name]["label"].config(bg="#ffffff")
             self.tabs[name]["frame"].lift()
 
+        logger.info(f"[MainWindow] Switched to tab: {name}")
+
     def show_rules(self, rules):
         self.tabs["Rules"]["frame"].display_rules(rules)
 
     def mark_tab_dirty(self, name):
         if name in self.tabs:
             label = self.tabs[name]["label"]
-            if not label.cget("text").endswith("*"):
-                label.config(text=label.cget("text") + " *")
+            clean_text = label.cget("text").rstrip(" *")
+            label.config(text=clean_text + " *")
+            logger.debug(f"[MainWindow] Marked tab as dirty: {name}")
 
     def mark_tab_clean(self, name):
         if name in self.tabs:
             label = self.tabs[name]["label"]
-            if label.cget("text").endswith("*"):
-                label.config(text=label.cget("text")[:-2])  # remove ' *'
+            clean_text = label.cget("text").rstrip(" *")
+            label.config(text=clean_text)
+            logger.debug(f"[MainWindow] Marked tab as clean: {name}")
 
     def open_rule_tab(self, name, widget_factory, display_name=None):
         if name in self.tabs:
             self.show_tab(name)
             return
 
-        print(f"[MainWindow] Creating new tab for: {name}")
+        logger.info(f"[MainWindow] Creating new tab for: {name}")
 
         container = tk.Frame(self.tab_bar, bg="#dcdcdc")
         container.pack(side="left")
-        print(f"[MainWindow] Tab '{name}' content packed.")
 
         label_name = display_name or name
 
@@ -137,24 +144,24 @@ class MainWindow:
 
     def close_tab(self, name):
         if name not in self.tabs:
+            logger.warning(f"[MainWindow] Tried to close unknown tab: '{name}'")
+            logger.debug(f"Available tabs: {list(self.tabs.keys())}")
             return
 
         tab = self.tabs[name]
         widget_frame = tab["frame"]
-        
-        # Check if this frame has children and is a RuleEditor
+
         if widget_frame.winfo_children():
             editor = widget_frame.winfo_children()[0]
             if hasattr(editor, "is_dirty") and editor.is_dirty:
                 from tkinter import messagebox
                 confirm = messagebox.askyesnocancel("Unsaved Changes", f"Do you want to save changes to '{name}' before closing?")
                 if confirm is None:
-                    return  # cancel
+                    return
                 elif confirm:
                     if hasattr(editor, "save_rule"):
                         editor.save_rule()
 
-        # Proceed to destroy
         tab["label"].destroy()
         if "close" in tab:
             tab["close"].destroy()
@@ -163,29 +170,36 @@ class MainWindow:
         if "container" in tab:
             tab["container"].destroy()
 
-        if name in self.tabs:
-            del self.tabs[name]
-        else:
-            print(f"[⚠️ close_tab] Tried to close unknown tab: '{name}'")
-            print("🔎 Available tabs:", list(self.tabs.keys()))
+        del self.tabs[name]
+        logger.info(f"[MainWindow] Closed tab: {name}")
 
         fallback = "Rules" if "Rules" in self.tabs else next(iter(self.tabs), None)
         if fallback:
             self.show_tab(fallback)
 
     def rename_tab(self, old_name, new_name):
-        if old_name in self.tabs:
-            tab = self.tabs.pop(old_name)
-            self.tabs[new_name] = tab
+        if old_name == new_name or new_name in self.tabs:
+            return  # Skip if name is unchanged or already exists
 
-            current_text = tab["label"].cget("text")
-            is_dirty = current_text.endswith("*")
-            tab["label"].config(text=new_name + (" *" if is_dirty else ""))
+        tab = self.tabs.pop(old_name, None)
+        if not tab:
+            logger.warning(f"[MainWindow] Tried to rename non-existent tab: {old_name}")
+            return
 
-            if "close" in tab:
-                tab["close"].bind("<Button-1>", lambda e, n=new_name: self.close_tab(n))
+        self.tabs[new_name] = tab
 
-            # Ensure we update current_tab
-            if self.current_tab == old_name:
-                self.current_tab = new_name
+        label = tab["label"]
+        current_text = label.cget("text").rstrip(" *")
+        is_dirty = label.cget("text").endswith("*")
 
+        if current_text == new_name:
+            return  # Visually identical, skip
+
+        label.config(text=new_name + (" *" if is_dirty else ""))
+        if "close" in tab:
+            tab["close"].bind("<Button-1>", lambda e, n=new_name: self.close_tab(n))
+
+        if self.current_tab == old_name:
+            self.current_tab = new_name
+
+        # logger.info(f"[MainWindow] Renamed tab: {old_name} → {new_name}")

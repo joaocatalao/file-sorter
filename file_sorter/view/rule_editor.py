@@ -1,18 +1,19 @@
-from tkinter import ttk, filedialog, messagebox
-from view.widgets.condition_group import ConditionGroup
-from view.widgets.action_row import ActionRow
 from view.widgets.toolbar import Toolbar
+from view.widgets.rule_name_section import RuleNameSection
+from view.widgets.monitor_list import MonitorList
+from view.widgets.condition_section import ConditionSection
+from view.widgets.condition_group import ConditionGroup
+from view.widgets.action_section import ActionSection
+from model.dynamic_rule import DynamicRule
 
 import tkinter as tk
-from tkinter import messagebox
 from collections import defaultdict
-import sys
+from tkinter import ttk, filedialog, messagebox
 import os
-import glob
+import logging
 
 class RuleEditor(tk.Frame):
     def __init__(self, parent, controller, rule=None, rule_index=None):
-        print("[RuleEditor] __init__ called")
 
         super().__init__(parent, bg="#f9f9f9")
         self.controller = controller
@@ -20,15 +21,15 @@ class RuleEditor(tk.Frame):
         self.rule_index = rule_index
         self.action_rows = []
 
+        logger = logging.getLogger(__name__)
+        logger.debug(f"[RuleEditor] Initialized with rule: {self.rule.name if self.rule else 'New'}")
+
         self.rule_status = tk.StringVar(value="Stopped")
         self.is_running = False
 
         self.rule_name = tk.StringVar(value=self.rule.name if self.rule else "")
-        self.tab_name = self.rule_name.get()  # ✅ Use the current input name as tab_name
-        self.monitor_mode = tk.StringVar(value=self.rule.config.get("monitor_mode", "watchdog") if self.rule else "watchdog")
-        self.poll_interval = tk.StringVar(value=self.rule.config.get("poll_interval", "10") if self.rule else "10")
-        self.poll_unit = tk.StringVar(value=self.rule.config.get("poll_unit", "Minutes") if self.rule else "Minutes")
-        
+        self.tab_name = getattr(self, "tab_name", self.rule_name.get())
+    
         def on_rule_name_change(*_):
             new_name = self.rule_name.get().strip()
 
@@ -45,11 +46,19 @@ class RuleEditor(tk.Frame):
 
         self.rule_name.trace_add("write", on_rule_name_change)
 
-        self.folder_rows = []  # holds dicts: {path_var, subs_var, frame}
-
         self.is_dirty = False  # ✅ Set early
 
         self.build_ui()  # ✅ After trace bindings
+
+    def _current_rule_object(self) -> DynamicRule:
+        """Return a DynamicRule built from the current form fields."""
+        config = {
+            "folders": self.monitor_section.get_config(),
+            "conditions": self.condition_section.get_data(),
+            "actions": self.action_section.get_data(),
+        }
+        name = self.rule_name.get().strip() or "Untitled"
+        return DynamicRule(name, config)
 
     def mark_dirty(self):
         if not self.tab_name:
@@ -59,16 +68,51 @@ class RuleEditor(tk.Frame):
             if self.tab_name:
                 self.controller.view.mark_tab_dirty(self.tab_name)
 
-    def toggle_monitor_options(self):
-        if self.monitor_options.winfo_ismapped():
-            self.monitor_options.pack_forget()
-        else:
-            self.monitor_options.pack(fill="x", padx=5, pady=(0, 10))
-
     def build_ui(self):
-        print("[RuleEditor] build_ui() called")
+        def toggle_start():
+            self.is_running = not self.is_running
+            self.rule_status.set("Running" if self.is_running else "Stopped")
+            self.indicator.itemconfig("dot", fill="#4caf50" if self.is_running else "#ccc")
+            self.start_button.config(text="⏹ Stop" if self.is_running else "▶ Start")
 
-        # --- Canvas + Scrollable Frame Wrapper ---
+            if self.is_running:
+                self.running_rule = self._current_rule_object()
+                self.controller.start_rule_runtime(self.running_rule)
+            else:
+                if hasattr(self, "running_rule"):
+                    self.controller.stop_rule_runtime(self.running_rule.name)
+                    del self.running_rule
+                else:
+                    self.controller.stop_rule_runtime(self.rule_name.get())
+
+        status_frame = ttk.Frame(self)
+
+        self.indicator = tk.Canvas(status_frame, width=10, height=10, highlightthickness=0)
+        self.indicator.pack(side="left", padx=(0, 5))
+
+        self.indicator.create_oval(2, 2, 10, 10, fill="#ccc", outline="#888", tags="dot")
+
+        status_label = ttk.Label(status_frame, textvariable=self.rule_status, foreground="#555")
+        status_label.pack(side="left")
+
+        # --- Toolbar (above scrollable area) ---
+        self.toolbar = Toolbar(
+            self,
+            left_buttons=[
+                {"text": "▶ Start", "command": toggle_start, "tooltip": "Start or stop rule"},
+                # No status_frame passed here
+            ],
+            right_buttons=[
+                {"text": "👁 Preview", "command": self.preview_rule, "tooltip": "Preview matching files"},
+                {"text": "💾 Save", "command": self.save_rule, "tooltip": "Save rule"}
+            ]
+        )
+        self.indicator = self.toolbar.add_status_indicator(self.rule_status, is_running=self.is_running)
+        self.toolbar.pack(fill="x", pady=(0, 10))
+
+        self.start_button = self.toolbar.left_area.winfo_children()[0]  # Keep ref
+
+        # --- Scrollable Content ---
         canvas = tk.Canvas(self, bg="#f9f9f9", borderwidth=0, highlightthickness=0)
         v_scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=v_scrollbar.set)
@@ -91,192 +135,61 @@ class RuleEditor(tk.Frame):
         # Optional: scroll with mouse wheel
         self.scrollable_frame.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", lambda ev: canvas.yview_scroll(-1*(ev.delta//120), "units")))
         self.scrollable_frame.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
-
+        
         # --- Everything below goes inside scrollable_frame ---
-        # Create the status indicator widget
-        self.rule_status = tk.StringVar(value="Stopped")
-        self.is_running = False
-
-        status_frame = ttk.Frame()
-        self.indicator = tk.Canvas(status_frame, width=10, height=10, highlightthickness=0)
-        self.indicator.pack(side="left", padx=(0, 5))
-        self.indicator.create_oval(2, 2, 10, 10, fill="#ccc", outline="#888", tags="dot")
-        ttk.Label(status_frame, textvariable=self.rule_status, foreground="#555").pack(side="left")
-
-        def toggle_start():
-            self.is_running = not self.is_running
-            self.rule_status.set("Running" if self.is_running else "Stopped")
-            self.indicator.itemconfig("dot", fill="#4caf50" if self.is_running else "#ccc")
-            self.start_button.config(text="⏹ Stop" if self.is_running else "▶ Start")
-
-        toolbar = Toolbar(
-            self.scrollable_frame,
-            left_buttons=[
-                {"text": "▶ Start", "command": toggle_start, "tooltip": "Start or stop rule"},
-                {"custom": status_frame}
-            ],
-            right_buttons=[
-                {"text": "👁 Preview", "command": self.preview_rule, "tooltip": "Preview matching files"},
-                {"text": "💾 Save", "command": self.save_rule, "tooltip": "Save rule"}
-            ]
-        )
-        toolbar.pack(fill="x", pady=(0, 10))
-
-        # Keep reference to toggle button for later updates
-        self.start_button = toolbar.left_area.winfo_children()[0]
-
-        # Rule name section
-        name_frame = ttk.LabelFrame(self.scrollable_frame, text="Rule Name")
-        name_frame.pack(fill="x", padx=20, pady=(10, 10))  # Top margin from toolbar
-        ttk.Entry(name_frame, textvariable=self.rule_name).pack(fill="x", padx=10, pady=10)
-
+        
         # Main content wrapper
         content = tk.Frame(self.scrollable_frame, bg="#f9f9f9")
         content.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        
+        # Rule name section
+        RuleNameSection(
+            content,
+            controller=self.controller,
+            name_var=self.rule_name,
+            on_rename=lambda old, new: self.controller.view.rename_tab(old, new),
+            on_dirty=self.mark_dirty
+        )
 
         # Folder section
-        folder_frame = ttk.LabelFrame(content, text="Monitor Folders")
-        folder_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
-
-        self.folder_container = ttk.Frame(folder_frame)
-        self.folder_container.pack(fill="x", pady=(0, 10))
-
-        if self.rule and "folders" in self.rule.config:
-            for folder in self.rule.config["folders"]:
-                self.add_folder_row(
-                    preset_path=folder.get("path", ""),
-                    preset_include=folder.get("include_subs", False),
-                    preset_mode=folder.get("monitor_mode", "watchdog"),
-                    preset_interval=folder.get("poll_interval", "10"),
-                    preset_unit=folder.get("poll_unit", "Minutes")
-                )
-        else:
-            self.add_folder_row()
-
-        ttk.Button(folder_frame, text="➕ Add Folder", command=self.add_folder_row).pack(anchor="w", padx=5, pady=5)
-
-        self.monitor_options = ttk.Frame(folder_frame)
-        self.monitor_options.pack(fill="x", padx=5, pady=(2, 5))
-        self.monitor_options.pack_forget()
-
-        ttk.Radiobutton(self.monitor_options, text="React on file changes", variable=self.monitor_mode, value="watchdog").pack(anchor="w", pady=(0, 2))
-        poll_row = ttk.Frame(self.monitor_options)
-        poll_row.pack(anchor="w")
-
-        ttk.Radiobutton(poll_row, text="Check every", variable=self.monitor_mode, value="poll").pack(side="left")
-        ttk.Entry(poll_row, textvariable=self.poll_interval, width=5).pack(side="left", padx=(5, 2))
-        ttk.Combobox(poll_row, textvariable=self.poll_unit, values=["Seconds", "Minutes", "Hours"], width=8, state="readonly").pack(side="left")
+        self.monitor_section = MonitorList(
+            content,
+            paths=self.rule.config.get("folders", []) if self.rule else [],
+            on_dirty=self.mark_dirty
+        )
 
         # Condition section
-        self.cond_frame = ttk.LabelFrame(content, text="If")
-        self.cond_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
+        self.condition_section = ConditionSection(
+            content,
+            controller=self.controller,
+            rule=self.rule,
+            on_dirty=self.mark_dirty
+        )
 
-        self.condition_group = ConditionGroup(self.cond_frame, controller=self.controller)
-        if self.rule and "conditions" in self.rule.config:
-            self.condition_group.load_data(self.rule.config["conditions"])
 
         # Action section
-        action_frame = ttk.LabelFrame(content, text="Then")
-        action_frame.pack(fill="x", pady=(0, 10))  # ✅ consistent
-
-        self.action_container = tk.Frame(action_frame, bg="#f9f9f9")
-        self.action_container.pack(fill="x", padx=5, pady=5)
-
-        ttk.Button(action_frame, text="➕ Add Action", command=self.add_action_row).pack(anchor="w", padx=5, pady=(0, 5))
-
-        if self.rule and "actions" in self.rule.config:
-            for action_cfg in self.rule.config["actions"]:
-                self.add_action_row(preset=action_cfg)
-        else:
-            self.add_action_row()
-
-        print("[RuleEditor] UI built successfully")
-
-    def remove_folder_row(self, row_frame):
-        for row in self.folder_rows:
-            if row["frame"] == row_frame:
-                row_frame.destroy()
-                self.folder_rows.remove(row)
-                break
-        self.mark_dirty()
-
-    def browse_folder_dialog(self, path_var):
-        path = filedialog.askdirectory()
-        if path:
-            path_var.set(path)
-            self.mark_dirty()
-
-    def add_folder_row(self, preset_path="", preset_include=False, preset_mode="watchdog", preset_interval="10", preset_unit="Minutes"):
-        path_var = tk.StringVar(value=preset_path)
-        subs_var = tk.BooleanVar(value=preset_include)
-
-        mode_var = tk.StringVar(value=preset_mode)
-        poll_interval = tk.StringVar(value=preset_interval)
-        poll_unit = tk.StringVar(value=preset_unit)
-
-        # Container frame for full folder block
-        outer = ttk.Frame(self.folder_container)
-        outer.pack(fill="x", padx=5, pady=3)
-
-        # Row with entry + buttons
-        top = ttk.Frame(outer)
-        top.pack(fill="x")
-
-        ttk.Entry(top, textvariable=path_var).pack(side="left", fill="x", expand=True)
-        ttk.Button(top, text="...", command=lambda: self.browse_folder_dialog(path_var)).pack(side="left", padx=5)
-
-        # Monitor options toggle (this row only)
-        def toggle():
-            if monitor_frame.winfo_ismapped():
-                monitor_frame.pack_forget()
-            else:
-                monitor_frame.pack(fill="x", padx=5, pady=(2, 5))
-
-        ttk.Button(top, text="⚙️", width=3, command=toggle).pack(side="left", padx=(0, 2))
-        ttk.Button(top, text="❌", width=3, command=lambda: self.remove_folder_row(outer)).pack(side="left", padx=(0, 2))
-
-        # Include subfolders checkbox
-        ttk.Checkbutton(outer, text="Include subfolders", variable=subs_var).pack(anchor="w", pady=(2, 0))
-
-        # Folder-specific monitor settings frame (with visual border)
-        monitor_frame = ttk.LabelFrame(outer, text="Monitor Options")
-        monitor_frame.pack_forget()
-
-        ttk.Radiobutton(monitor_frame, text="React on file changes", variable=mode_var, value="watchdog").pack(anchor="w", pady=(0, 2))
-        poll_row = ttk.Frame(monitor_frame)
-        poll_row.pack(anchor="w")
-
-        ttk.Radiobutton(poll_row, text="Check every", variable=mode_var, value="poll").pack(side="left")
-        ttk.Entry(poll_row, textvariable=poll_interval, width=5).pack(side="left", padx=(5, 2))
-        ttk.Combobox(poll_row, textvariable=poll_unit, values=["Seconds", "Minutes", "Hours"], width=8, state="readonly").pack(side="left")
-
-        self.folder_rows.append({
-            "frame": outer,
-            "path": path_var,
-            "subs": subs_var,
-            "mode": mode_var,
-            "interval": poll_interval,
-            "unit": poll_unit,
-        })
-
-    def browse_folder(self):
-        path = filedialog.askdirectory()
-        if path:
-            self.folder_path.set(path)
-
-    def add_action_row(self, preset=None):
-        row = ActionRow(self.action_container, controller=self.controller, preset=preset, on_delete=lambda: self.remove_action_row(row))
-        self.action_rows.append(row)
-
-    def remove_action_row(self, row):
-        row.frame.destroy()
-        if row in self.action_rows:
-            self.action_rows.remove(row)
-
+        self.action_section = ActionSection(
+            content,
+            controller=self.controller,
+            rule=self.rule,
+            on_dirty=self.mark_dirty
+        )
+        self.action_section.pack(fill="x", pady=(0, 10))
+    
+    # FIX: Rule saving should be moved to rule_manager.py or similar
     def save_rule(self):
 
         actions_data = [row.get_data() for row in self.action_rows]
-        conditions_data = self.condition_group.get_data()
+        conditions_data = self.condition_section.get_data()
+
+        folders_config = self.monitor_section.get_config()
+        if not any(f.get("path") for f in folders_config):
+            messagebox.showerror("Error", "Please add at least one folder to monitor.")
+            return
+
+        if not actions_data:
+            messagebox.showerror("Error", "Add at least one action.")
+            return
 
         new_name = self.rule_name.get().strip()
         if not new_name:
@@ -289,9 +202,6 @@ class RuleEditor(tk.Frame):
         existing_names = {r.name for r in self.controller.rule_manager.rules}
         base_name = new_name
         suffix = 1
-
-        def rules_match(r1, r2):
-            return r1.name == r2.name and r1.config == r2.config
 
         existing_names = {r.name for r in self.controller.rule_manager.rules}
         base_name = new_name
@@ -307,22 +217,9 @@ class RuleEditor(tk.Frame):
         # Check if any *other* rule already has this name and config
         is_duplicate = any(
             rules_match(r, new_name, {
-                "folders": [
-                    {
-                        "path": row["path"].get().strip(),
-                        "include_subs": row["subs"].get(),
-                        "monitor_mode": row["mode"].get(),
-                        **(
-                            {
-                                "poll_interval": row["interval"].get(),
-                                "poll_unit": row["unit"].get()
-                            } if row["mode"].get() == "poll" else {}
-                        )
-                    } for row in self.folder_rows
-                ],
-
-                "conditions": self.condition_group.get_data(),
-                "actions": [row.get_data() for row in self.action_rows]
+                "folders": self.monitor_section.get_config(),
+                "conditions": self.condition_section.get_data(),
+                "actions": self.action_section.get_data()
             })
             for r in self.controller.rule_manager.rules
             if r is not self.rule
@@ -342,26 +239,9 @@ class RuleEditor(tk.Frame):
         self.rule_name.set(new_name)  # ✅ UI field last
         
         rule_data = {
-            "folders": [
-                {
-                    "path": row["path"].get().strip(),
-                    "include_subs": row["subs"].get(),
-                    "monitor_mode": row["mode"].get(),
-                    **(
-                        {
-                            "poll_interval": row["interval"].get(),
-                            "poll_unit": row["unit"].get()
-                        } if row["mode"].get() == "poll" else {}
-                    )
-                } for row in self.folder_rows
-            ],
-
-            "conditions": conditions_data,
-            "actions": actions_data,
-            "monitor_mode": self.monitor_mode.get(),
-            "poll_interval": self.poll_interval.get(),
-            "poll_unit": self.poll_unit.get(),
-
+            "folders": self.monitor_section.get_config(),
+            "conditions": self.condition_section.get_data(),
+            "actions": self.action_section.get_data()
         }
 
         rule = self.controller.create_or_update_rule(
@@ -382,29 +262,23 @@ class RuleEditor(tk.Frame):
         messagebox.showinfo("Saved", f"Rule '{rule.name}' saved successfully.")
         
     def preview_rule(self):
-
+        logger = logging.getLogger(__name__)
         folders = [
             {
-                "path": row["path"].get().strip(),
-                "include_subs": row["subs"].get()
+                "path": row["path"].strip(),
+                "include_subs": row["include_subs"]
             }
-            for row in self.folder_rows if row["path"].get().strip()
+            for row in self.monitor_section.get_rows() if row["path"].strip()
         ]
 
         if not folders:
             messagebox.showerror("Missing Folder", "Please choose at least one folder.")
             return
 
-        print(f"[📂 Preview Triggered] For {len(folders)} folder(s)")
+        logger.info(f"[Preview] Triggered for rule '{self.rule_name.get()}' on {len(folders)} folder(s)")
 
-        rule_obj = self.controller.rule_manager.available_rule_classes["DynamicRule"](
-            self.rule_name.get(),
-            {
-                "folders": folders,
-                "conditions": self.condition_group.get_data(),
-                "actions": [row.get_data() for row in self.action_rows],
-            },
-        )
+        rule_obj = self._current_rule_object()
+        rule_obj.config["folders"] = folders
 
         def nested_dict():
             return defaultdict(nested_dict)
@@ -458,7 +332,7 @@ class RuleEditor(tk.Frame):
                             node.setdefault("_files", []).append(parts[-1])
 
                 except Exception as e:
-                    print(f"[⚠️ Preview Error] Failed to list {root}: {e}")
+                    logger.error(f"[Preview] Failed to list {root}: {e}")
 
         # UI display (no changes here)
         popup = tk.Toplevel(self)
@@ -541,3 +415,12 @@ class RuleEditor(tk.Frame):
         listbox.bind("<Button-1>", on_click)
 
         ttk.Button(popup, text="Close", command=popup.destroy).pack(pady=10)
+
+    def destroy(self):
+        logger = logging.getLogger(__name__)
+        logger.debug("[RuleEditor] destroy() called — cleaning up toolbar")
+        if hasattr(self, "running_rule"):
+            self.controller.stop_rule_runtime(self.running_rule.name)
+        if hasattr(self, "toolbar"):
+            self.toolbar.destroy()
+        super().destroy()
